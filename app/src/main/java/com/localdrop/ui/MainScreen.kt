@@ -1,11 +1,11 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.localdrop.ui
 
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Bitmap
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -27,61 +27,42 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.localdrop.ads.SmartAdContainer
-import com.localdrop.core.format.SizeFormatter
-import com.localdrop.model.PickedFileUi
-import com.localdrop.model.SharingState
+import androidx.compose.ui.unit.sp
+import com.localdrop.core.utils.SizeFormatter
 import com.localdrop.ui.theme.*
+import com.localdrop.ads.SmartAdContainer
 
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
-    modifier: Modifier = Modifier
+    onPickFiles: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onFilesPicked(uris)
-        }
-    }
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
         containerColor = BackgroundDark,
         topBar = {
             TopAppBar(
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(PrimaryBlue),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
                         Text(
                             text = "LocalDrop",
-                            style = MaterialTheme.typography.titleLarge.copy(
+                            style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = TextPrimary
                             )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (uiState.sharingActive) SuccessGreen else PrimaryBlue)
                         )
                     }
                 },
@@ -91,187 +72,271 @@ fun MainScreen(
             )
         }
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
-            when (val state = uiState.sharingState) {
-                is SharingState.Idle -> {
-                    item {
-                        // Drop zone for picking files
-                        Box(
+            // Error Banner
+            uiState.errorMessage?.let { err ->
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = ErrorRedBg),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text(
+                        text = err,
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            // Capabilities / Wi-Fi Warning Banner
+            uiState.capabilitiesWarning?.let { warn ->
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = WarningAmberBg),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text(
+                        text = warn,
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
+            AnimatedContent(
+                targetState = uiState.sharingActive,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "ScreenState"
+            ) { isSharing ->
+                if (!isSharing) {
+                    // IDLE / FILE SELECTION STATE
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            // File Selection Drop Zone Box
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(130.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SurfaceDark)
+                                    .border(1.dp, SurfaceBorderDark, RoundedCornerShape(16.dp))
+                                    .clickable { onPickFiles() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AddCircle,
+                                        contentDescription = "Select Files",
+                                        tint = PrimaryBlue,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                    Text(
+                                        text = "Tap to choose files",
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                    Text(
+                                        text = "Any format · Direct device-to-device",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+
+                            // Selected Files List
+                            if (uiState.pickedFiles.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ready to send (${uiState.pickedFiles.size})",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                    )
+                                    Text(
+                                        text = "Clear all",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = PrimaryBlue),
+                                        modifier = Modifier.clickable { viewModel.clearPickedFiles() }
+                                    )
+                                }
+                                LazyColumn(
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    items(uiState.pickedFiles) { file ->
+                                        FileItemCard(file = file)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Bottom Start Sharing Button
+                        Button(
+                            onClick = { viewModel.startSharing() },
+                            enabled = uiState.pickedFiles.isNotEmpty() && !uiState.starting,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PrimaryBlue,
+                                disabledContainerColor = SurfaceDark
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(160.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(SurfaceDark)
-                                .border(1.dp, SurfaceBorderDark, RoundedCornerShape(16.dp))
-                                .clickable { filePickerLauncher.launch(arrayOf("*/*")) },
-                            contentAlignment = Alignment.Center
+                                .height(52.dp)
+                                .padding(bottom = 6.dp)
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            if (uiState.starting) {
+                                CircularProgressIndicator(
+                                    color = TextPrimary,
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = if (uiState.pickedFiles.isEmpty()) "Select files to begin" else "Start Sharing",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = if (uiState.pickedFiles.isEmpty()) TextMuted else TextPrimary
+                                    )
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // SHARING / TRANSMITTER STATE
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            // QR Card
+                            Card(
+                                shape = RoundedCornerShape(20.dp),
+                                colors = CardDefaults.cardColors(containerColor = QRContainerWhite),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                modifier = Modifier
+                                    .padding(top = 12.dp)
+                                    .size(240.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(PrimaryBlue.copy(alpha = 0.15f)),
+                                        .fillMaxSize()
+                                        .padding(16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Pick Files",
-                                        tint = PrimaryBlue,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "Tap to select files to share",
-                                    style = MaterialTheme.typography.bodyMedium.copy(
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                )
-                                Text(
-                                    text = "Videos, Photos, ZIP, APKs or Documents",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    )
-                                )
-                            }
-                        }
-                    }
-
-                    if (uiState.selectedFiles.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Selected Files (${uiState.selectedFiles.size})",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                                )
-                                TextButton(onClick = { viewModel.clearSelectedFiles() }) {
-                                    Text("Clear All", color = ErrorRed)
+                                    uiState.serverConfig?.let { config ->
+                                        val qrBitmap: Bitmap? = remember(config) {
+                                            try {
+                                                viewModel.qrBitmapFor(config)
+                                            } catch (e: Exception) {
+                                                null
+                                            }
+                                        }
+                                        qrBitmap?.let {
+                                            Image(
+                                                bitmap = it.asImageBitmap(),
+                                                contentDescription = "QR Code",
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    } ?: CircularProgressIndicator(color = BackgroundDark)
                                 }
                             }
-                        }
 
-                        items(uiState.selectedFiles) { file ->
-                            FileItemCard(file = file)
-                        }
+                            Text(
+                                text = "Scan using receiver's camera",
+                                style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                            )
 
-                        item {
-                            Button(
-                                onClick = { viewModel.startSharing() },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Start Sharing",
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        }
-                    }
-
-                    item {
-                        HowItWorksCard()
-                    }
-
-                    item {
-                        // Rectangular Box Ad in Idle State
-                        SmartAdContainer(isSharingActive = false)
-                    }
-                }
-
-                is SharingState.Active -> {
-                    item {
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Text(
-                                    text = "Scan or Open Link to Download",
-                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                    textAlign = TextAlign.Center
-                                )
-
-                                uiState.qrCodeBitmap?.let { qr ->
-                                    Image(
-                                        bitmap = qr.asImageBitmap(),
-                                        contentDescription = "QR Code",
-                                        modifier = Modifier
-                                            .size(200.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(BackgroundDark)
-                                            .padding(8.dp)
-                                    )
-                                }
-
+                            // Clickable URL Pill
+                            uiState.serverConfig?.connectionUrl()?.let { url ->
                                 Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("LocalDrop URL", state.serverUrl))
-                                            Toast.makeText(context, "URL Copied!", Toast.LENGTH_SHORT).show()
-                                        },
                                     shape = RoundedCornerShape(10.dp),
-                                    color = SurfaceContainerDark,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark)
+                                    color = SurfaceDark,
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark),
+                                    modifier = Modifier.clickable {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("LocalDrop URL", url))
+                                        Toast.makeText(context, "URL copied", Toast.LENGTH_SHORT).show()
+                                    }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(12.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         Text(
-                                            text = state.serverUrl,
-                                            style = MaterialTheme.typography.bodyMedium.copy(color = PrimaryBlue),
+                                            text = url,
+                                            style = MaterialTheme.typography.bodyMedium.copy(color = PrimaryLight),
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Icon(
                                             imageVector = Icons.Default.Share,
                                             contentDescription = "Copy",
-                                            tint = PrimaryBlue,
-                                            modifier = Modifier.size(18.dp)
+                                            tint = PrimaryLight,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Hotspot & Receivers info dock
+                            Card(
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceAround
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(text = "NETWORK", style = MaterialTheme.typography.labelSmall)
+                                        Text(
+                                            text = "LocalDrop Active",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(text = "CONNECTED", style = MaterialTheme.typography.labelSmall)
+                                        Text(
+                                            text = "${uiState.transfers.size} devices",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                         )
                                     }
                                 }
                             }
                         }
-                    }
 
-                    item {
-                        // Native Video Ad during active sharing
-                        SmartAdContainer(isSharingActive = true)
-                    }
-
-                    item {
+                        // Stop Sharing Action
                         Button(
                             onClick = { viewModel.stopSharing() },
                             shape = RoundedCornerShape(14.dp),
@@ -280,6 +345,7 @@ fun MainScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
+                                .padding(bottom = 6.dp)
                         ) {
                             Text(
                                 text = "Stop Sharing",
@@ -338,150 +404,6 @@ fun FileItemCard(file: PickedFileUi) {
                     style = MaterialTheme.typography.labelSmall
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun HowItWorksCard() {
-    var isHindi by remember { mutableStateOf(false) }
-
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
-        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(PrimaryBlue.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "?",
-                            style = MaterialTheme.typography.titleSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = PrimaryBlue
-                            )
-                        )
-                    }
-                    Text(
-                        text = if (isHindi) "यह कैसे काम करता है?" else "How LocalDrop Works",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    )
-                }
-
-                Surface(
-                    onClick = { isHindi = !isHindi },
-                    shape = RoundedCornerShape(20.dp),
-                    color = SurfaceContainerDark,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.4f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = if (isHindi) "English" else "हिंदी",
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = PrimaryBlue
-                            )
-                        )
-                    }
-                }
-            }
-
-            InstructionStepItem(
-                stepNumber = "1",
-                title = if (isHindi) "फाइलें चुनें" else "Select Files",
-                description = if (isHindi) 
-                    "ऊपर दिए गए बॉक्स पर टैप करके वो वीडियो, फोटो या डॉक्युमेंट्स चुनें जिन्हें भेजना है।" 
-                    else "Tap the drop zone above to pick any videos, photos, or documents you want to transfer."
-            )
-
-            InstructionStepItem(
-                stepNumber = "2",
-                title = if (isHindi) "Start Sharing दबाएं और कनेक्ट करें" else "Start Sharing & Connect",
-                description = if (isHindi)
-                    "Start Sharing दबाएं। दूसरे फोन से बने हुए LocalDrop हॉटस्पॉट से कनेक्ट करें या दोनों फोन एक ही वाई-फाई पर रखें।"
-                    else "Tap Start Sharing. Connect the receiving device to LocalDrop hotspot or stay on the same local Wi-Fi."
-            )
-
-            InstructionStepItem(
-                stepNumber = "3",
-                title = if (isHindi) "QR स्कैन करें और डाउनलोड करें" else "Scan QR & Download",
-                description = if (isHindi)
-                    "दूसरे फोन के कैमरा या ब्राउज़र से QR कोड स्कैन करें या लिंक खोलें। बिना इंटरनेट के हाई-स्पीड ट्रांसफर शुरू हो जाएगा!"
-                    else "Scan the QR code or enter the link in any mobile browser to download at maximum Wi-Fi speed without internet!"
-            )
-        }
-    }
-}
-
-@Composable
-fun InstructionStepItem(stepNumber: String, title: String, description: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .background(SurfaceContainerDark)
-                .border(1.dp, SurfaceBorderDark, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = stepNumber,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = PrimaryBlue
-                )
-            )
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                )
-            )
         }
     }
 }
