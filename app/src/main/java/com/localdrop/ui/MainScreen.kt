@@ -29,11 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.localdrop.ads.SmartAdContainer
-import com.localdrop.core.security.SharedFile
 import com.localdrop.core.utils.SizeFormatter
-import com.localdrop.model.PickedFile
 import com.localdrop.ui.theme.*
 
 @Composable
@@ -64,7 +61,7 @@ fun MainScreen(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(if (uiState.isSharing) SuccessGreen else PrimaryBlue)
+                                .background(if (uiState.sharingActive) SuccessGreen else PrimaryBlue)
                         )
                     }
                 },
@@ -79,7 +76,7 @@ fun MainScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (!uiState.isSharing) {
+            if (!uiState.sharingActive) {
                 // 1. File Picker Box
                 item {
                     Box(
@@ -108,7 +105,9 @@ fun MainScreen(
                             )
                             Text(
                                 text = "Any format · Direct device-to-device",
-                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
                             )
                         }
                     }
@@ -182,6 +181,7 @@ fun MainScreen(
             } else {
                 // ACTIVE SHARING STATE
                 item {
+                    val serverCfg = uiState.serverConfig
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -200,25 +200,29 @@ fun MainScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
 
-                            uiState.qrCode?.let { qr ->
-                                Image(
-                                    bitmap = qr.asImageBitmap(),
-                                    contentDescription = "QR Code",
-                                    modifier = Modifier
-                                        .size(200.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(BackgroundDark)
-                                        .padding(8.dp)
-                                )
-                            }
+                            if (serverCfg != null) {
+                                val qrBitmap = remember(serverCfg) {
+                                    viewModel.qrBitmapFor(serverCfg)
+                                }
+                                qrBitmap?.let { qr ->
+                                    Image(
+                                        bitmap = qr.asImageBitmap(),
+                                        contentDescription = "QR Code",
+                                        modifier = Modifier
+                                            .size(200.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(BackgroundDark)
+                                            .padding(8.dp)
+                                    )
+                                }
 
-                            uiState.serverConfig?.let { cfg ->
+                                val fullUrl = serverCfg.connectionUrl()
                                 Surface(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
                                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                            clipboard.setPrimaryClip(ClipData.newPlainText("LocalDrop URL", cfg.baseUrl))
+                                            clipboard.setPrimaryClip(ClipData.newPlainText("LocalDrop URL", fullUrl))
                                             Toast.makeText(context, "URL Copied!", Toast.LENGTH_SHORT).show()
                                         },
                                     shape = RoundedCornerShape(10.dp),
@@ -231,7 +235,7 @@ fun MainScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            text = cfg.baseUrl,
+                                            text = fullUrl,
                                             style = MaterialTheme.typography.bodyMedium.copy(color = PrimaryBlue),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
@@ -282,7 +286,7 @@ fun MainScreen(
 }
 
 @Composable
-fun FileItemCard(file: PickedFile) {
+fun FileItemCard(file: PickedFileUi) {
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -320,7 +324,9 @@ fun FileItemCard(file: PickedFile) {
                 )
                 Text(
                     text = SizeFormatter.formatBytes(file.sizeBytes),
-                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
                 )
             }
         }
