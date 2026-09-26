@@ -341,7 +341,11 @@ fun MainScreen(
 
                         HowItWorksCard()
 
-                    com.localdrop.ads.BannerAdView()
+                    com.localdrop.ads.SmartAdContainer(isSharingActive = false)
+
+                    
+
+                        com.localdrop.ads.SmartAdContainer(isSharingActive = true)
 
                         // Stop Sharing Action
                         Button(
@@ -428,7 +432,7 @@ fun resolveFileIcon(mimeType: String): ImageVector {
 @Composable
 fun HowItWorksCard()
 
-                    com.localdrop.ads.BannerAdView() {
+                     {
     var isHindi by remember { mutableStateOf(false) }
 
     Card(

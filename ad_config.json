@@ -1,8 +1,10 @@
 {
-  "ads_enabled": false,
+  "ads_enabled": true,
   "ad_provider": "admob",
   "banner_ad_id": "ca-app-pub-3940256099942544/6300978111",
   "interstitial_ad_id": "ca-app-pub-3940256099942544/1033173712",
+  "native_video_ad_id": "ca-app-pub-3940256099942544/2247696110",
   "show_bottom_banner": true,
+  "show_native_video_during_sharing": true,
   "show_interstitial_on_stop": true
 }
