@@ -4,11 +4,10 @@ package com.localdrop.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Bitmap
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,29 +30,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.localdrop.core.security.SharedFile
-import com.localdrop.core.utils.QrCodeGenerator
 import com.localdrop.core.utils.SizeFormatter
-import com.localdrop.hotspot.HotspotState
 import com.localdrop.ui.theme.*
 
 @Composable
-fun MainScreen(viewModel: MainViewModel) {
+fun MainScreen(
+    viewModel: MainViewModel,
+    onPickFiles: () -> Unit
+) {
     val context = LocalContext.current
-    val selectedFiles by viewModel.selectedFiles.collectAsState()
-    val isSharing by viewModel.sharingActive.collectAsState()
-    val serverConfig by viewModel.serverConfig.collectAsState()
-    val hotspotState by viewModel.hotspotState.collectAsState()
-    val activeTransfers by viewModel.activeTransfers.collectAsState()
-    val lastError by viewModel.lastError.collectAsState()
-
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.onFilesSelected(uris)
-        }
-    }
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         containerColor = BackgroundDark,
@@ -75,7 +61,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(CircleShape)
-                                .background(if (isSharing) SuccessGreen else PrimaryBlue)
+                                .background(if (uiState.sharingActive) SuccessGreen else PrimaryBlue)
                         )
                     }
                 },
@@ -91,8 +77,8 @@ fun MainScreen(viewModel: MainViewModel) {
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp, vertical = 8.dp)
         ) {
-            // Status Banner if any warning/error
-            lastError?.let { err ->
+            // Error Banner
+            uiState.errorMessage?.let { err ->
                 Card(
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = ErrorRedBg),
@@ -109,12 +95,30 @@ fun MainScreen(viewModel: MainViewModel) {
                 }
             }
 
+            // Capabilities / Wi-Fi Warning Banner
+            uiState.capabilitiesWarning?.let { warn ->
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = WarningAmberBg),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Text(
+                        text = warn,
+                        color = TextPrimary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+
             AnimatedContent(
-                targetState = isSharing,
+                targetState = uiState.sharingActive,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "ScreenState"
-            ) { sharing ->
-                if (!sharing) {
+            ) { isSharing ->
+                if (!isSharing) {
                     // IDLE / FILE SELECTION STATE
                     Column(
                         modifier = Modifier.fillMaxSize(),
@@ -124,7 +128,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            // Upload Drop Zone Box
+                            // File Selection Drop Zone Box
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -132,7 +136,7 @@ fun MainScreen(viewModel: MainViewModel) {
                                     .clip(RoundedCornerShape(16.dp))
                                     .background(SurfaceDark)
                                     .border(1.dp, SurfaceBorderDark, RoundedCornerShape(16.dp))
-                                    .clickable { filePickerLauncher.launch(arrayOf("*/*")) },
+                                    .clickable { onPickFiles() },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(
@@ -157,29 +161,37 @@ fun MainScreen(viewModel: MainViewModel) {
                             }
 
                             // Selected Files List
-                            if (selectedFiles.isNotEmpty()) {
-                                Text(
-                                    text = "Ready to send (${selectedFiles.size})",
-                                    style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
-                                )
+                            if (uiState.pickedFiles.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ready to send (${uiState.pickedFiles.size})",
+                                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary)
+                                    )
+                                    Text(
+                                        text = "Clear all",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = PrimaryBlue),
+                                        modifier = Modifier.clickable { viewModel.clearPickedFiles() }
+                                    )
+                                }
                                 LazyColumn(
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    items(selectedFiles) { file ->
-                                        FileItemCard(
-                                            file = file,
-                                            onRemove = { viewModel.removeFile(file) }
-                                        )
+                                    items(uiState.pickedFiles) { file ->
+                                        FileItemCard(file = file)
                                     }
                                 }
                             }
                         }
 
-                        // Bottom Beam Button
+                        // Bottom Start Sharing Button
                         Button(
                             onClick = { viewModel.startSharing() },
-                            enabled = selectedFiles.isNotEmpty(),
+                            enabled = uiState.pickedFiles.isNotEmpty() && !uiState.starting,
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = PrimaryBlue,
@@ -190,21 +202,28 @@ fun MainScreen(viewModel: MainViewModel) {
                                 .height(52.dp)
                                 .padding(bottom = 6.dp)
                         ) {
-                            Text(
-                                text = if (selectedFiles.isEmpty()) "Select files to begin" else "Start Sharing",
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = if (selectedFiles.isEmpty()) TextMuted else TextPrimary
+                            if (uiState.starting) {
+                                CircularProgressIndicator(
+                                    color = TextPrimary,
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp
                                 )
-                            )
+                            } else {
+                                Text(
+                                    text = if (uiState.pickedFiles.isEmpty()) "Select files to begin" else "Start Sharing",
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        color = if (uiState.pickedFiles.isEmpty()) TextMuted else TextPrimary
+                                    )
+                                )
+                            }
                         }
                     }
                 } else {
                     // SHARING / TRANSMITTER STATE
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -228,12 +247,16 @@ fun MainScreen(viewModel: MainViewModel) {
                                         .padding(16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    serverConfig?.shareUrl?.let { url ->
-                                        val qrBitmap = remember(url) {
-                                            QrCodeGenerator.generateQrBitmap(url, 512)
+                                    uiState.serverConfig?.let { config ->
+                                        val qrBitmap: Bitmap? = remember(config) {
+                                            try {
+                                                viewModel.qrBitmapFor(config)
+                                            } catch (e: Exception) {
+                                                null
+                                            }
                                         }
                                         qrBitmap?.let {
-                                            androidx.compose.foundation.Image(
+                                            Image(
                                                 bitmap = it.asImageBitmap(),
                                                 contentDescription = "QR Code",
                                                 modifier = Modifier.fillMaxSize()
@@ -249,7 +272,7 @@ fun MainScreen(viewModel: MainViewModel) {
                             )
 
                             // Clickable URL Pill
-                            serverConfig?.shareUrl?.let { url ->
+                            uiState.serverConfig?.connectionUrl()?.let { url ->
                                 Surface(
                                     shape = RoundedCornerShape(10.dp),
                                     color = SurfaceDark,
@@ -295,20 +318,16 @@ fun MainScreen(viewModel: MainViewModel) {
                                     horizontalArrangement = Arrangement.SpaceAround
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(text = "HOTSPOT", style = MaterialTheme.typography.labelSmall)
-                                        val ssid = when (val s = hotspotState) {
-                                            is HotspotState.Running -> s.ssid ?: "Active"
-                                            else -> "Starting..."
-                                        }
+                                        Text(text = "NETWORK", style = MaterialTheme.typography.labelSmall)
                                         Text(
-                                            text = ssid,
+                                            text = "LocalDrop Active",
                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                         )
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(text = "CONNECTED", style = MaterialTheme.typography.labelSmall)
                                         Text(
-                                            text = "${activeTransfers.size} devices",
+                                            text = "${uiState.transfers.size} devices",
                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                         )
                                     }
@@ -343,7 +362,7 @@ fun MainScreen(viewModel: MainViewModel) {
 }
 
 @Composable
-fun FileItemCard(file: SharedFile, onRemove: () -> Unit) {
+fun FileItemCard(file: PickedFileUi) {
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceDark),
@@ -382,15 +401,6 @@ fun FileItemCard(file: SharedFile, onRemove: () -> Unit) {
                 Text(
                     text = SizeFormatter.formatBytes(file.sizeBytes),
                     style = MaterialTheme.typography.labelSmall
-                )
-            }
-
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
-                    tint = TextMuted,
-                    modifier = Modifier.size(18.dp)
                 )
             }
         }
