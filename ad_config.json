@@ -1,0 +1,8 @@
+{
+  "ads_enabled": false,
+  "ad_provider": "admob",
+  "banner_ad_id": "ca-app-pub-3940256099942544/6300978111",
+  "interstitial_ad_id": "ca-app-pub-3940256099942544/1033173712",
+  "show_bottom_banner": true,
+  "show_interstitial_on_stop": true
+}

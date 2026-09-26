@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.localdrop.ads.RemoteAdManager.init(this)
 
         // Ensure the (already-declared, non-foreground-triggering) service
         // instance exists so the ViewModel's binding succeeds immediately.

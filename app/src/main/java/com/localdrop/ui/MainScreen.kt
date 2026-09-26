@@ -1,4 +1,8 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 package com.localdrop.ui
 
 import android.content.ClipData
@@ -335,6 +339,10 @@ fun MainScreen(
                             }
                         }
 
+                        HowItWorksCard()
+
+                    com.localdrop.ads.BannerAdView()
+
                         // Stop Sharing Action
                         Button(
                             onClick = { viewModel.stopSharing() },
@@ -413,5 +421,153 @@ fun resolveFileIcon(mimeType: String): ImageVector {
         mimeType.startsWith("audio/") -> Icons.Default.Star
         mimeType.startsWith("image/") -> Icons.Default.ThumbUp
         else -> Icons.Default.MoreVert
+    }
+}
+
+
+@Composable
+fun HowItWorksCard()
+
+                    com.localdrop.ads.BannerAdView() {
+    var isHindi by remember { mutableStateOf(false) }
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+        border = androidx.compose.foundation.BorderStroke(1.dp, SurfaceBorderDark),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(PrimaryBlue.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "?",
+                            style = MaterialTheme.typography.titleSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = PrimaryBlue
+                            )
+                        )
+                    }
+                    Text(
+                        text = if (isHindi) "यह कैसे काम करता है?" else "How LocalDrop Works",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                // Language Switcher Button
+                Surface(
+                    onClick = { isHindi = !isHindi },
+                    shape = RoundedCornerShape(20.dp),
+                    color = SurfaceContainerDark,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, PrimaryBlue.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (isHindi) "English" else "हिंदी",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryBlue
+                            )
+                        )
+                    }
+                }
+            }
+
+            InstructionStepItem(
+                stepNumber = "1",
+                title = if (isHindi) "फाइलें चुनें" else "Select Files",
+                description = if (isHindi) 
+                    "ऊपर दिए गए बॉक्स पर टैप करके वो वीडियो, फोटो या डॉक्युमेंट्स चुनें जिन्हें भेजना है।" 
+                    else "Tap the drop zone above to pick any videos, photos, or documents you want to transfer."
+            )
+
+            InstructionStepItem(
+                stepNumber = "2",
+                title = if (isHindi) "Start Sharing दबाएं और कनेक्ट करें" else "Start Sharing & Connect",
+                description = if (isHindi)
+                    "Start Sharing दबाएं। दूसरे फोन से बने हुए LocalDrop हॉटस्पॉट से कनेक्ट करें या दोनों फोन एक ही वाई-फाई पर रखें।"
+                    else "Tap Start Sharing. Connect the receiving device to LocalDrop hotspot or stay on the same local Wi-Fi."
+            )
+
+            InstructionStepItem(
+                stepNumber = "3",
+                title = if (isHindi) "QR स्कैन करें और डाउनलोड करें" else "Scan QR & Download",
+                description = if (isHindi)
+                    "दूसरे फोन के कैमरा या ब्राउज़र से QR कोड स्कैन करें या लिंक खोलें। बिना इंटरनेट के हाई-स्पीड ट्रांसफर शुरू हो जाएगा!"
+                    else "Scan the QR code or enter the link in any mobile browser to download at maximum Wi-Fi speed without internet!"
+            )
+        }
+    }
+}
+
+@Composable
+fun InstructionStepItem(stepNumber: String, title: String, description: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(SurfaceContainerDark)
+                .border(1.dp, SurfaceBorderDark, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = stepNumber,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = PrimaryBlue
+                )
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            )
+        }
     }
 }

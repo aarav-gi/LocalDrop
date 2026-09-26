@@ -7,6 +7,7 @@ import com.localdrop.core.network.NetworkInterfaceDetector
 import com.localdrop.core.security.SessionManager
 import com.localdrop.core.security.SharedFile
 import java.io.IOException
+import com.localdrop.service.SharingWakeLockManager
 
 /**
  * Owns the LocalHttpServer's lifecycle: discovers a real local IP (never
@@ -20,6 +21,7 @@ class ServerController(
     val transferManager: TransferManager
 ) {
     private var server: LocalHttpServer? = null
+    private val wakeLockManager = SharingWakeLockManager(context)
     var config: ServerConfig? = null
         private set
 
@@ -31,6 +33,7 @@ class ServerController(
         stop() // ensure clean slate
 
         val detector = NetworkInterfaceDetector(context)
+        wakeLockManager.acquire()
         val localAddress = detector.findLocalIpv4Address()
             ?: throw IllegalStateException("No usable local network address found")
 
@@ -74,6 +77,7 @@ class ServerController(
     fun stop() {
         server?.stop()
         server = null
+        wakeLockManager.release()
         sessionManager.stopSession()
         transferManager.clear()
         config = null
