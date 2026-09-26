@@ -3,6 +3,7 @@ package com.localdrop.hotspot
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
 import android.os.Build
 import androidx.core.content.ContextCompat
@@ -37,6 +38,14 @@ class LocalOnlyHotspotManager(private val context: Context) {
             activeReservation?.close()
         } catch (_: Exception) {}
         activeReservation = null
+
+        // Explicitly restore default Android system internet routing
+        try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                cm?.bindProcessToNetwork(null)
+            }
+        } catch (_: Exception) {}
     }
 
     suspend fun start(): Result = suspendCancellableCoroutine { cont ->
@@ -52,7 +61,7 @@ class LocalOnlyHotspotManager(private val context: Context) {
             return@suspendCancellableCoroutine
         }
 
-        // Agar pichla session system me phasa ho toh pehle force clean karein
+        // Pichla session clean karein aur route release karein
         stop()
 
         try {
@@ -64,10 +73,22 @@ class LocalOnlyHotspotManager(private val context: Context) {
 
                 override fun onStopped() {
                     activeReservation = null
+                    try {
+                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            cm?.bindProcessToNetwork(null)
+                        }
+                    } catch (_: Exception) {}
                 }
 
                 override fun onFailed(reason: Int) {
                     activeReservation = null
+                    try {
+                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            cm?.bindProcessToNetwork(null)
+                        }
+                    } catch (_: Exception) {}
                     if (cont.isActive) {
                         cont.resume(Result.Failed(describeFailure(reason)))
                     }

@@ -85,6 +85,12 @@ class SharingForegroundService : Service() {
         } catch (e: Exception) {
             _lastError.value = e.message ?: "Failed to start server"
             wifiNetworkManager.teardown()
+        try {
+            val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                cm?.bindProcessToNetwork(null)
+            }
+        } catch (_: Exception) {}
             false
         }
     }
