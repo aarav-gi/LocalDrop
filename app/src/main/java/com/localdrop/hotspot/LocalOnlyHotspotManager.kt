@@ -39,7 +39,6 @@ class LocalOnlyHotspotManager(private val context: Context) {
         } catch (_: Exception) {}
         activeReservation = null
 
-        // Explicitly restore default Android system internet routing
         try {
             val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -61,39 +60,40 @@ class LocalOnlyHotspotManager(private val context: Context) {
             return@suspendCancellableCoroutine
         }
 
-        // Pichla session clean karein aur route release karein
         stop()
 
-        try {
-            wifiManager.startLocalOnlyHotspot(object : WifiManager.LocalOnlyHotspotCallback() {
-                override fun onStarted(reservation: WifiManager.LocalOnlyHotspotReservation) {
-                    activeReservation = reservation
-                    if (cont.isActive) cont.resume(Result.Success(reservation))
-                }
+        val callback = object : WifiManager.LocalOnlyHotspotCallback() {
+            override fun onStarted(reservation: WifiManager.LocalOnlyHotspotReservation) {
+                activeReservation = reservation
+                if (cont.isActive) cont.resume(Result.Success(reservation))
+            }
 
-                override fun onStopped() {
-                    activeReservation = null
-                    try {
-                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            cm?.bindProcessToNetwork(null)
-                        }
-                    } catch (_: Exception) {}
-                }
-
-                override fun onFailed(reason: Int) {
-                    activeReservation = null
-                    try {
-                        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            cm?.bindProcessToNetwork(null)
-                        }
-                    } catch (_: Exception) {}
-                    if (cont.isActive) {
-                        cont.resume(Result.Failed(describeFailure(reason)))
+            override fun onStopped() {
+                activeReservation = null
+                try {
+                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        cm?.bindProcessToNetwork(null)
                     }
+                } catch (_: Exception) {}
+            }
+
+            override fun onFailed(reason: Int) {
+                activeReservation = null
+                try {
+                    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        cm?.bindProcessToNetwork(null)
+                    }
+                } catch (_: Exception) {}
+                if (cont.isActive) {
+                    cont.resume(Result.Failed(describeFailure(reason)))
                 }
-            }, null)
+            }
+        }
+
+        try {
+            wifiManager.startLocalOnlyHotspot(callback, null)
 
             cont.invokeOnCancellation {
                 stop()
