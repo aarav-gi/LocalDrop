@@ -28,12 +28,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-/**
- * Keeps the local hotspot connectivity and the embedded HTTP server alive
- * for as long as sharing is active, independent of whether MainActivity's
- * UI is currently visible — matching the plan's requirement that transfers
- * continue while the app isn't in the foreground.
- */
 class SharingForegroundService : Service() {
 
     private val binder = LocalBinder()
@@ -70,13 +64,9 @@ class SharingForegroundService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // If the process was restarted while a share was supposedly active,
-        // there's nothing safe to resume automatically (files were URIs
-        // held in memory only) — surface that rather than silently failing.
         return START_NOT_STICKY
     }
 
-    /** Call from the UI layer (already off the main thread via viewModelScope). */
     suspend fun startSharing(files: List<SharedFile>): Boolean {
         _lastError.value = null
         val hotspotResult = wifiNetworkManager.establishConnectivity()
@@ -101,7 +91,9 @@ class SharingForegroundService : Service() {
 
     fun stopSharing() {
         notificationTicker?.cancel()
-        serverController.stop()
+        try {
+            serverController.stop()
+        } catch (_: Exception) {}
         wifiNetworkManager.teardown()
         _serverConfig.value = null
         _sharingActive.value = false
@@ -157,10 +149,11 @@ class SharingForegroundService : Service() {
 
     override fun onDestroy() {
         notificationTicker?.cancel()
-        if (_sharingActive.value) {
+        // Unconditionally teardown so Wi-Fi state is never locked
+        try {
             serverController.stop()
-            wifiNetworkManager.teardown()
-        }
+        } catch (_: Exception) {}
+        wifiNetworkManager.teardown()
         super.onDestroy()
     }
 

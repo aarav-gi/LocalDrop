@@ -9,14 +9,9 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-/**
- * Thin wrapper around the documented, supported
- * WifiManager.startLocalOnlyHotspot() API (API 26+). This is the only
- * hotspot-creation path this app uses — no undocumented/root-only APIs.
- * On many devices/OS versions this requires ACCESS_FINE_LOCATION to be
- * granted; that is checked before calling.
- */
 class LocalOnlyHotspotManager(private val context: Context) {
+
+    private var activeReservation: WifiManager.LocalOnlyHotspotReservation? = null
 
     sealed class Result {
         data class Success(val reservation: WifiManager.LocalOnlyHotspotReservation) : Result()
@@ -24,8 +19,6 @@ class LocalOnlyHotspotManager(private val context: Context) {
     }
 
     fun hasRequiredPermission(): Boolean {
-        // LocalOnlyHotspot has historically required fine location; some
-        // OEM/OS combinations also gate it behind NEARBY_WIFI_DEVICES on 33+.
         val fineLocation = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
@@ -37,6 +30,13 @@ class LocalOnlyHotspotManager(private val context: Context) {
             return fineLocation || nearbyWifi
         }
         return fineLocation
+    }
+
+    fun stop() {
+        try {
+            activeReservation?.close()
+        } catch (_: Exception) {}
+        activeReservation = null
     }
 
     suspend fun start(): Result = suspendCancellableCoroutine { cont ->
@@ -52,25 +52,33 @@ class LocalOnlyHotspotManager(private val context: Context) {
             return@suspendCancellableCoroutine
         }
 
+        // Agar pichla session system me phasa ho toh pehle force clean karein
+        stop()
+
         try {
             wifiManager.startLocalOnlyHotspot(object : WifiManager.LocalOnlyHotspotCallback() {
                 override fun onStarted(reservation: WifiManager.LocalOnlyHotspotReservation) {
+                    activeReservation = reservation
                     if (cont.isActive) cont.resume(Result.Success(reservation))
                 }
 
                 override fun onStopped() {
-                    // Handled by caller observing HotspotState; nothing to resume here
-                    // since either onStarted or onFailed will have already completed
-                    // this coroutine.
+                    activeReservation = null
                 }
 
                 override fun onFailed(reason: Int) {
+                    activeReservation = null
                     if (cont.isActive) {
                         cont.resume(Result.Failed(describeFailure(reason)))
                     }
                 }
             }, null)
+
+            cont.invokeOnCancellation {
+                stop()
+            }
         } catch (e: Exception) {
+            activeReservation = null
             cont.resume(Result.Failed(e.message ?: "Unknown hotspot error"))
         }
     }
