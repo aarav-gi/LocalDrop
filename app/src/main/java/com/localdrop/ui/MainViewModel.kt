@@ -145,4 +145,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
         super.onCleared()
     }
+
+    fun toggleItemSelection(uri: Uri, name: String, sizeBytes: Long, mimeType: String) {
+        val current = _uiState.value.pickedFiles.toMutableList()
+        val existingIndex = current.indexOfFirst { it.uri == uri }
+        if (existingIndex >= 0) {
+            current.removeAt(existingIndex)
+        } else {
+            current.add(
+                com.localdrop.core.security.SharedFile(
+                    fileToken = com.localdrop.core.security.TokenGenerator.generateFileToken(),
+                    uri = uri,
+                    displayName = name,
+                    sizeBytes = sizeBytes,
+                    mimeType = mimeType
+                )
+            )
+        }
+        _uiState.update { it.copy(pickedFiles = current) }
+    }
+
 }

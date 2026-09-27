@@ -323,8 +323,37 @@ fun SendFilesScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedCategory by remember { mutableStateOf(0) }
-    val categories = listOf("Files", "Photos", "Videos", "Apps")
+    val context = LocalContext.current
+    val repository = remember { com.localdrop.core.utils.MediaScannerRepository(context) }
+
+    var selectedTab by remember { mutableStateOf(0) }
+    val tabs = listOf("Files", "Photos", "Videos", "Apps")
+
+    var filesList by remember { mutableStateOf<List<com.localdrop.core.utils.SelectableItem>>(emptyList()) }
+    var photosList by remember { mutableStateOf<List<com.localdrop.core.utils.SelectableItem>>(emptyList()) }
+    var videosList by remember { mutableStateOf<List<com.localdrop.core.utils.SelectableItem>>(emptyList()) }
+    var appsList by remember { mutableStateOf<List<com.localdrop.core.utils.SelectableItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    // Load category data when tab switches
+    LaunchedEffect(selectedTab) {
+        isLoading = true
+        when (selectedTab) {
+            0 -> if (filesList.isEmpty()) filesList = repository.getDocuments()
+            1 -> if (photosList.isEmpty()) photosList = repository.getPhotos()
+            2 -> if (videosList.isEmpty()) videosList = repository.getVideos()
+            3 -> if (appsList.isEmpty()) appsList = repository.getInstalledApps()
+        }
+        isLoading = false
+    }
+
+    val currentItems = when (selectedTab) {
+        0 -> filesList
+        1 -> photosList
+        2 -> videosList
+        3 -> appsList
+        else -> emptyList()
+    }
 
     Column(
         modifier = Modifier
@@ -332,7 +361,10 @@ fun SendFilesScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -350,39 +382,37 @@ fun SendFilesScreen(
                 )
             }
 
-            // Category Tabs
+            // Category Tabs: Files | Photos | Videos | Apps
             TabRow(
-                selectedTabIndex = selectedCategory,
+                selectedTabIndex = selectedTab,
                 containerColor = Color.Transparent,
                 contentColor = PrimaryBlue,
                 divider = {}
             ) {
-                categories.forEachIndexed { index, title ->
+                tabs.forEachIndexed { index, title ->
                     Tab(
-                        selected = selectedCategory == index,
-                        onClick = { selectedCategory = index },
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
                         text = {
                             Text(
                                 text = title,
-                                fontWeight = if (selectedCategory == index) FontWeight.Bold else FontWeight.Normal,
-                                color = if (selectedCategory == index) PrimaryBlue else TextSecondary
+                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
+                                color = if (selectedTab == index) PrimaryBlue else TextSecondary
                             )
                         }
                     )
                 }
             }
 
-            // Selected Summary Card
+            // Selected count banner + Add from Storage button
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                 border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onPickMore() }
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.padding(12.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -411,16 +441,35 @@ fun SendFilesScreen(
                             )
                         }
                     }
-                    Icon(Icons.Default.Add, contentDescription = "Add More", tint = PrimaryBlue)
+
+                    // Button to open system file explorer
+                    OutlinedButton(
+                        onClick = onPickMore,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Browse", fontSize = 12.sp)
+                    }
                 }
             }
 
-            // Files List
-            if (uiState.pickedFiles.isEmpty()) {
+            // Content List
+            if (isLoading) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp)
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = PrimaryBlue)
+                }
+            } else if (currentItems.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
                         .clip(RoundedCornerShape(16.dp))
                         .background(SurfaceWhite)
                         .border(1.dp, BorderLight, RoundedCornerShape(16.dp))
@@ -428,23 +477,38 @@ fun SendFilesScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.AddCircle, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(40.dp))
+                        Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(40.dp))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("Tap to add files", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Select files to begin transfer", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("No items found in ${tabs[selectedTab]}", fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Text("Tap Browse or Add to pick manually", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     }
                 }
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.weight(1f, fill = false)
+                    modifier = Modifier.weight(1f)
                 ) {
-                    items(uiState.pickedFiles) { file ->
+                    items(currentItems) { item ->
+                        val isSelected = uiState.pickedFiles.any { it.uri == item.uri }
                         Card(
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
-                            modifier = Modifier.fillMaxWidth()
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (isSelected) PrimaryBlueLight.copy(alpha = 0.5f) else SurfaceWhite
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isSelected) PrimaryBlue else BorderLight
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.toggleItemSelection(
+                                        uri = item.uri,
+                                        name = item.name,
+                                        sizeBytes = item.sizeBytes,
+                                        mimeType = item.mimeType
+                                    )
+                                }
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
@@ -458,21 +522,36 @@ fun SendFilesScreen(
                                         .background(PrimaryBlueLight),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(resolveFileIcon(file.mimeType), contentDescription = null, tint = PrimaryBlue)
+                                    Icon(
+                                        imageVector = resolveFileIcon(item.mimeType),
+                                        contentDescription = null,
+                                        tint = PrimaryBlue
+                                    )
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = file.displayName,
+                                        text = item.name,
                                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = SizeFormatter.formatBytes(file.sizeBytes),
+                                        text = SizeFormatter.formatBytes(item.sizeBytes),
                                         style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
                                     )
                                 }
-                                Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = PrimaryBlue)
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = {
+                                        viewModel.toggleItemSelection(
+                                            uri = item.uri,
+                                            name = item.name,
+                                            sizeBytes = item.sizeBytes,
+                                            mimeType = item.mimeType
+                                        )
+                                    },
+                                    colors = CheckboxDefaults.colors(checkedColor = PrimaryBlue)
+                                )
                             }
                         }
                     }
@@ -498,16 +577,13 @@ fun SendFilesScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Default.QrCode, contentDescription = null)
-                    Text("Generate QR Code", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    Text("Generate QR Code (${uiState.pickedFiles.size})", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                 }
             }
         }
     }
 }
 
-// -------------------------------------------------------------
-// 3. SHARE QR SCREEN (Clean QR Card + Preview + Video Ad)
-// -------------------------------------------------------------
 @Composable
 fun ShareQrScreen(
     viewModel: MainViewModel,

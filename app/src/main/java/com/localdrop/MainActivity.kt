@@ -85,8 +85,19 @@ class MainActivity : ComponentActivity() {
                 this, Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED
             if (!notifGranted) needed += Manifest.permission.POST_NOTIFICATIONS
-        } else if (!fineLocationGranted) {
-            needed += Manifest.permission.ACCESS_FINE_LOCATION
+
+            // Android 13+ Media permissions
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                needed += Manifest.permission.READ_MEDIA_IMAGES
+            }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+                needed += Manifest.permission.READ_MEDIA_VIDEO
+            }
+        } else {
+            if (!fineLocationGranted) needed += Manifest.permission.ACCESS_FINE_LOCATION
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                needed += Manifest.permission.READ_EXTERNAL_STORAGE
+            }
         }
 
         if (needed.isNotEmpty()) {
