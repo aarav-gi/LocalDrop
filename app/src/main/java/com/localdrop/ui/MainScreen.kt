@@ -401,26 +401,26 @@ fun HowItWorksCard() {
 
             InstructionStepItem(
                 stepNumber = "1",
-                title = if (isHindi) "फाइलें चुनें" else "Select Files",
-                description = if (isHindi) 
-                    "ऊपर दिए गए बॉक्स पर टैप करके वो वीडियो, फोटो या फाइल्स चुनें जिन्हें भेजना है।" 
-                    else "Tap the box above to select any photos, videos, or documents you want to share."
+                title = if (isHindi) "फ़ाइलें चुनें" else "Select Files",
+                description = if (isHindi)
+                    "ऊपर दिए गए बॉक्स पर टैप करके वो फ़ोटोज़, वीडियोज़, APK या डॉक्युमेंट्स चुनें जिन्हें भेजना है।"
+                    else "Tap the selection box above to choose videos, photos, APKs, or any files you want to transfer."
             )
 
             InstructionStepItem(
                 stepNumber = "2",
-                title = if (isHindi) "Start Sharing दबाएं और कनेक्ट करें" else "Start Sharing & Connect",
+                title = if (isHindi) "सेंडर का वाई-फ़ाई ऑन होना चाहिए" else "Sender Wi-Fi Must Be On",
                 description = if (isHindi)
-                    "Start Sharing दबाएं। दूसरे फोन से LocalDrop वाई-फाई हॉटस्पॉट से कनेक्ट करें।"
-                    else "Tap Start Sharing. Connect the receiving device to LocalDrop hotspot or ensure both are on the same Wi-Fi."
+                    "Start Sharing दबाएं। सुनिश्चित करें कि सेंडर फ़ोन का वाई-फ़ाई या हॉटस्पॉट ऑन है ताकि डायरेक्ट लोकल कनेक्शन बन सके।"
+                    else "Tap Start Sharing. Ensure the sender device has Wi-Fi or Hotspot enabled to create the direct high-speed local link."
             )
 
             InstructionStepItem(
                 stepNumber = "3",
-                title = if (isHindi) "QR स्कैन करें और डाउनलोड करें" else "Scan QR & Download",
+                title = if (isHindi) "ब्राउज़र में सीधे डाउनलोड करें" else "Download Directly in Browser",
                 description = if (isHindi)
-                    "दूसरे फोन के कैमरा या ब्राउज़र से QR कोड स्कैन करें। बिना इंटरनेट के हाई-स्पीड ट्रांसफर शुरू हो जाएगा!"
-                    else "Scan the QR code or enter the link in any mobile browser to download directly without internet!"
+                    "रिसीवर डिवाइस में किसी ऐप की ज़रूरत नहीं! बस QR कोड स्कैन करें या लिंक खोलें और ब्राउज़र से सुपर-फास्ट स्पीड में डाउनलोड करें।"
+                    else "No app needed on the receiver device! Simply scan the QR code or open the link to download directly inside any web browser."
             )
         }
     }
