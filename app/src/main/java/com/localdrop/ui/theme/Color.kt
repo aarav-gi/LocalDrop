@@ -2,32 +2,25 @@ package com.localdrop.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Surface & Foundation (Deep Obsidian Scale)
-val BackgroundDark = Color(0xFF0A0D14)
-val SurfaceDark = Color(0xFF131722)
-val SurfaceContainerDark = Color(0xFF1A1F2E)
-val SurfaceBorderDark = Color(0xFF262D40)
+// Primary Accent
+val PrimaryBlue = Color(0xFF2563EB)
+val PrimaryBlueDark = Color(0xFF1D4ED8)
+val PrimaryBlueLight = Color(0xFFEFF6FF)
 
-// Brand Primary & Gradients (Electric Indigo)
-val PrimaryBlue = Color(0xFF3B82F6)
-val PrimaryIndigo = Color(0xFF6366F1)
-val PrimaryLight = Color(0xFF93C5FD)
+// Backgrounds & Surfaces (Clean Light Theme)
+val BgLight = Color(0xFFF8FAFC)
+val SurfaceWhite = Color(0xFFFFFFFF)
+val SurfaceMuted = Color(0xFFF1F5F9)
+val BorderLight = Color(0xFFE2E8F0)
 
-// Semantic State Indicators
-val SuccessGreen = Color(0xFF10B981)
-val SuccessGreenBg = Color(0xFF064E3B)
-val WarningAmber = Color(0xFFF59E0B)
-val WarningAmberBg = Color(0xFF78350F)
-val ErrorRed = Color(0xFFEF4444)
-val ErrorRedBg = Color(0xFF7F1D1D)
+// Text Colors
+val TextPrimary = Color(0xFF0F172A)
+val TextSecondary = Color(0xFF64748B)
+val TextMuted = Color(0xFF94A3B8)
 
-// Typography & Content Contrast
-val TextPrimary = Color(0xFFF8FAFC)
-val TextSecondary = Color(0xFF94A3B8)
-val TextMuted = Color(0xFF64748B)
-
-// Utility & Badges
-val QRContainerWhite = Color(0xFFFFFFFF)
-val QRForegroundBlack = Color(0xFF0A0D14)
-val DangerButton = Color(0xFFDC2626)
-val DangerButtonBg = Color(0xFF2A1215)
+// Status & Accents
+val SuccessGreen = Color(0xFF16A34A)
+val SuccessBg = Color(0xFFDCFCE7)
+val ErrorRed = Color(0xFFDC2626)
+val OrangeBadge = Color(0xFFEA580C)
+val PurpleBadge = Color(0xFF9333EA)
