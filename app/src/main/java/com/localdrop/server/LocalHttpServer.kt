@@ -9,13 +9,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 
-/**
- * The embedded HTTP server the receiver's ordinary browser talks to.
- * Built on NanoHTTPD (single dependency, no full servlet stack needed for
- * an on-device server). All routes are read-only downloads for v1 — no
- * arbitrary filesystem paths are ever exposed, only opaque per-file tokens
- * resolved through SessionManager.
- */
 class LocalHttpServer(
     private val context: Context,
     port: Int,
@@ -27,7 +20,6 @@ class LocalHttpServer(
     private val fileStreamer = FileStreamer(context)
     private val rateLimiter = RateLimiter()
 
-    /** NanoHTTPD 2.3.1's Response.Status enum has no 429; define it explicitly. */
     private object TooManyRequestsStatus : Response.IStatus {
         override fun getRequestStatus(): Int = 429
         override fun getDescription(): String = "429 Too Many Requests"
@@ -50,24 +42,11 @@ class LocalHttpServer(
                 uri == NetworkConstants.ROUTE_SESSION -> handleSessionInfo(session)
                 uri == NetworkConstants.ROUTE_FILES -> handleFileList(session)
                 uri.startsWith(NetworkConstants.ROUTE_DOWNLOAD_PREFIX) -> handleDownload(session, remoteAddress)
-                uri.startsWith("/s/") -> serveWebUi()
-                uri == NetworkConstants.ROUTE_INDEX -> serveWebUi()
-                uri == "/" || uri == "/index.html" -> handleRootRedirect()
-                else -> handleRootRedirect()
+                uri.startsWith("/s/") || uri == "/" || uri == "/index.html" || uri == NetworkConstants.ROUTE_INDEX -> serveWebUi()
+                else -> serveWebUi()
             }
         } catch (e: Exception) {
             jsonError(Response.Status.INTERNAL_ERROR, "Server error: ${e.message}")
-        }
-    }
-
-    private fun handleRootRedirect(): Response {
-        val current = sessionManager.currentSession()
-        return if (current != null) {
-            val redirect = newFixedLengthResponse(Response.Status.REDIRECT, MIME_HTML, "")
-            redirect.addHeader("Location", "/s/${current.sessionToken}")
-            redirect
-        } else {
-            serveWebUi()
         }
     }
 
@@ -77,26 +56,28 @@ class LocalHttpServer(
     }
 
     private fun handleSessionInfo(session: IHTTPSession): Response {
-        val token = session.parms["s"]
-        if (!AccessController.isPlausibleToken(token) || !sessionManager.validateSession(token!!)) {
-            return jsonError(Response.Status.UNAUTHORIZED, "Invalid or expired session")
-        }
-        val active = sessionManager.currentSession()!!
+        val active = sessionManager.currentSession()
+            ?: return jsonError(Response.Status.NOT_FOUND, "No active session")
+
         val json = JSONObject()
             .put("valid", true)
+            .put("sessionToken", active.sessionToken)
             .put("fileCount", active.files.size)
             .put("createdAt", active.createdAtMillis)
         return newFixedLengthResponse(Response.Status.OK, "application/json", json.toString())
     }
 
     private fun handleFileList(session: IHTTPSession): Response {
+        val activeSession = sessionManager.currentSession()
+            ?: return jsonError(Response.Status.NOT_FOUND, "No active sharing session")
+
         val token = session.parms["s"]
-        if (!AccessController.isPlausibleToken(token) || !sessionManager.validateSession(token!!)) {
-            return jsonError(Response.Status.UNAUTHORIZED, "Invalid or expired session")
+        if (token != null && !sessionManager.validateSession(token)) {
+            return jsonError(Response.Status.UNAUTHORIZED, "Invalid session")
         }
-        val active = sessionManager.currentSession()!!
+
         val array = JSONArray()
-        active.files.values.forEach { f ->
+        activeSession.files.values.forEach { f ->
             array.put(
                 JSONObject()
                     .put("token", f.fileToken)
@@ -109,15 +90,12 @@ class LocalHttpServer(
     }
 
     private fun handleDownload(session: IHTTPSession, remoteAddress: String): Response {
-        val sessionToken = session.parms["s"]
+        val activeSession = sessionManager.currentSession()
+            ?: return jsonError(Response.Status.NOT_FOUND, "No active session")
+
         val fileToken = session.uri.removePrefix(NetworkConstants.ROUTE_DOWNLOAD_PREFIX)
-
-        if (!AccessController.isPlausibleToken(sessionToken) || !AccessController.isPlausibleToken(fileToken)) {
-            return jsonError(Response.Status.FORBIDDEN, "Malformed request")
-        }
-
-        val file = sessionManager.resolveFile(sessionToken!!, fileToken)
-            ?: return jsonError(Response.Status.FORBIDDEN, "Unauthorized or unknown file")
+        val file = activeSession.files[fileToken]
+            ?: return jsonError(Response.Status.NOT_FOUND, "File not found")
 
         val rangeHeader = session.headers["range"]
         val parsedRange = RangeHeader.parse(rangeHeader, file.sizeBytes)
@@ -135,39 +113,31 @@ class LocalHttpServer(
         val opened = try {
             fileStreamer.openRange(file.uri, file.sizeBytes, startByte, endByte)
         } catch (e: IOException) {
-            return jsonError(Response.Status.INTERNAL_ERROR, "Unable to read file")
+            return jsonError(Response.Status.INTERNAL_ERROR, "Cannot read file: ${e.message}")
         }
 
-        val transferId = transferManager.beginTransfer(
-            fileToken = file.fileToken,
-            fileName = file.displayName,
-            totalBytes = file.sizeBytes,
-            remoteAddress = remoteAddress,
-            resumeFromBytes = startByte
-        )
-
-        val progressStream = ProgressReportingInputStream(opened.stream, startByte) { cumulative ->
-            transferManager.updateProgress(transferId, cumulative)
-            if (cumulative >= file.sizeBytes) transferManager.completeTransfer(transferId)
-        }
+        transferManager.onTransferStarted(remoteAddress, file.displayName, file.sizeBytes)
 
         val status = if (parsedRange != null) Response.Status.PARTIAL_CONTENT else Response.Status.OK
-        val response = newFixedLengthResponse(status, file.mimeType, progressStream, opened.lengthToServe)
+        val response = newFixedLengthResponse(status, file.mimeType, opened.stream, opened.lengthToServe)
         response.addHeader("Accept-Ranges", "bytes")
-        response.addHeader(
-            "Content-Disposition",
-            "attachment; filename=\"${file.displayName.replace("\"", "")}\""
-        )
+        response.addHeader("Content-Disposition", "attachment; filename=\"${file.displayName}\"")
+
         if (parsedRange != null) {
-            val end = startByte + opened.lengthToServe - 1
-            response.addHeader("Content-Range", "bytes $startByte-$end/${file.sizeBytes}")
+            val actualEnd = startByte + opened.lengthToServe - 1
+            response.addHeader("Content-Range", "bytes $startByte-$actualEnd/${file.sizeBytes}")
         }
+
         return response
     }
 
     private fun serveWebUi(): Response {
-        val html = context.assets.open("web/index.html").bufferedReader().use { it.readText() }
-        return newFixedLengthResponse(Response.Status.OK, "text/html", html)
+        return try {
+            val html = context.assets.open("web/index.html").bufferedReader().use { it.readText() }
+            newFixedLengthResponse(Response.Status.OK, "text/html; charset=utf-8", html)
+        } catch (e: Exception) {
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, MIME_PLAINTEXT, "Web assets missing: ${e.message}")
+        }
     }
 
     private fun jsonError(status: Response.Status, message: String): Response {
