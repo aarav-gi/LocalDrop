@@ -335,7 +335,6 @@ fun SendFilesScreen(
     var appsList by remember { mutableStateOf<List<com.localdrop.core.utils.SelectableItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
 
-    // Load category data when tab switches
     LaunchedEffect(selectedTab) {
         isLoading = true
         when (selectedTab) {
@@ -382,7 +381,7 @@ fun SendFilesScreen(
                 )
             }
 
-            // Category Tabs: Files | Photos | Videos | Apps
+            // Category Tabs
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.Transparent,
@@ -404,7 +403,7 @@ fun SendFilesScreen(
                 }
             }
 
-            // Selected count banner + Add from Storage button
+            // Selected Counter & System Explorer trigger
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -442,7 +441,6 @@ fun SendFilesScreen(
                         }
                     }
 
-                    // Button to open system file explorer
                     OutlinedButton(
                         onClick = onPickMore,
                         shape = RoundedCornerShape(8.dp),
@@ -455,7 +453,7 @@ fun SendFilesScreen(
                 }
             }
 
-            // Content List
+            // Media list
             if (isLoading) {
                 Box(
                     modifier = Modifier
@@ -480,7 +478,7 @@ fun SendFilesScreen(
                         Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(40.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("No items found in ${tabs[selectedTab]}", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Tap Browse or Add to pick manually", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("Tap Browse to select manually", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     }
                 }
             } else {
@@ -559,7 +557,7 @@ fun SendFilesScreen(
             }
         }
 
-        // Bottom CTA: Generate QR Code
+        // Generate QR Button
         Button(
             onClick = { viewModel.startSharing() },
             enabled = uiState.pickedFiles.isNotEmpty() && !uiState.starting,

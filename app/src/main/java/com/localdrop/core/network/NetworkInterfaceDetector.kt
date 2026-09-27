@@ -13,16 +13,17 @@ class NetworkInterfaceDetector(private val context: Context) {
     fun findLocalIpv4Address(): LocalAddress? {
         val candidates = mutableListOf<LocalAddress>()
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return fallbackFromWifiManager()
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return fallbackWifiOrHotspot()
             for (iface in interfaces) {
                 if (!iface.isUp || iface.isLoopback) continue
                 val name = iface.name.lowercase()
 
-                // 1. Exclude Cellular / Mobile Data / VPN interfaces
-                if (name.startsWith("rmnet") || name.startsWith("clat") ||
-                    name.startsWith("ccmni") || name.startsWith("dummy") ||
+                // 1. Strictly block all cellular, modem, mobile data, and virtual tunnel interfaces
+                if (name.startsWith("rmnet") || name.startsWith("ccmni") ||
+                    name.startsWith("clat") || name.startsWith("dummy") ||
                     name.startsWith("tun") || name.startsWith("ppp") ||
-                    name.startsWith("radio") || name.startsWith("wwan")) {
+                    name.startsWith("radio") || name.startsWith("wwan") ||
+                    name.startsWith("v4-") || name.startsWith("seth")) {
                     continue
                 }
 
@@ -30,57 +31,59 @@ class NetworkInterfaceDetector(private val context: Context) {
                     if (addr is Inet4Address && !addr.isLoopbackAddress) {
                         val ip = addr.hostAddress ?: continue
 
-                        // Exclude carrier NAT & cellular subnet ranges
-                        if (ip.startsWith("192.0.0.") || ip.startsWith("100.") || ip.startsWith("127.")) continue
+                        // STRICT BLOCK: Carrier-grade NAT & cellular subnets (Never pick 10.x or 100.x)
+                        if (ip.startsWith("10.") || ip.startsWith("100.") ||
+                            ip.startsWith("192.0.0.") || ip.startsWith("127.")) {
+                            continue
+                        }
 
                         candidates.add(LocalAddress(iface.name, ip))
                     }
                 }
             }
         } catch (_: Exception) {
-            return fallbackFromWifiManager()
+            return fallbackWifiOrHotspot()
         }
 
-        if (candidates.isEmpty()) return fallbackFromWifiManager()
+        // 2. Highest priority: Hotspot or Wi-Fi standard subnet (192.168.x.x)
+        val hotspotSubnet = candidates.firstOrNull { it.ipv4.startsWith("192.168.") }
+        if (hotspotSubnet != null) return hotspotSubnet
 
-        // 2. Priority 1: Hotspot & Wi-Fi interfaces with 192.168.x.x (Standard for Android Hotspot & Wi-Fi)
-        val wifiOrHotspot = candidates.filter { c ->
+        // 3. Priority: Wi-Fi interfaces (wlan, ap, softap)
+        val wifiInterface = candidates.firstOrNull { c ->
             val n = c.interfaceName.lowercase()
-            n.startsWith("wlan") || n.startsWith("ap") || n.startsWith("swlan") || n.startsWith("softap") || n.startsWith("p2p")
+            n.startsWith("wlan") || n.startsWith("ap") || n.startsWith("swlan") || n.startsWith("softap")
         }
+        if (wifiInterface != null) return wifiInterface
 
-        val primary192 = wifiOrHotspot.firstOrNull { it.ipv4.startsWith("192.168.") }
-        if (primary192 != null) return primary192
+        // 4. Any remaining non-cellular candidate
+        val validCandidate = candidates.firstOrNull()
+        if (validCandidate != null) return validCandidate
 
-        // 3. Priority 2: Any 192.168.x.x interface
-        val any192 = candidates.firstOrNull { it.ipv4.startsWith("192.168.") }
-        if (any192 != null) return any192
-
-        // 4. Priority 3: Other Wi-Fi subnets (e.g. 172.16-31.x or non-cellular 10.x on wlan)
-        val wifiOther = wifiOrHotspot.firstOrNull { !it.ipv4.startsWith("10.") }
-            ?: wifiOrHotspot.firstOrNull()
-        if (wifiOther != null) return wifiOther
-
-        return candidates.firstOrNull() ?: fallbackFromWifiManager()
+        return fallbackWifiOrHotspot()
     }
 
     @Suppress("DEPRECATION")
-    private fun fallbackFromWifiManager(): LocalAddress? {
-        return try {
-            val wifiManager = context.applicationContext
-                .getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return null
-            val ip = wifiManager.connectionInfo?.ipAddress ?: return null
-            if (ip == 0) return null
-            val bytes = byteArrayOf(
-                (ip and 0xff).toByte(),
-                (ip shr 8 and 0xff).toByte(),
-                (ip shr 16 and 0xff).toByte(),
-                (ip shr 24 and 0xff).toByte()
-            )
-            LocalAddress("wlan-fallback", bytes.joinToString(".") { (it.toInt() and 0xff).toString() })
-        } catch (_: Exception) {
-            null
-        }
+    private fun fallbackWifiOrHotspot(): LocalAddress {
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            val ip = wifiManager?.connectionInfo?.ipAddress ?: 0
+            if (ip != 0) {
+                val bytes = byteArrayOf(
+                    (ip and 0xff).toByte(),
+                    (ip shr 8 and 0xff).toByte(),
+                    (ip shr 16 and 0xff).toByte(),
+                    (ip shr 24 and 0xff).toByte()
+                )
+                val wifiIp = bytes.joinToString(".") { (it.toInt() and 0xff).toString() }
+                if (!wifiIp.startsWith("0.") && !wifiIp.startsWith("10.")) {
+                    return LocalAddress("wlan0", wifiIp)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // Safe Hotspot default when sender is acting as Wi-Fi Access Point
+        return LocalAddress("ap0", "192.168.43.1")
     }
 
     fun hasUsableNetwork(): Boolean {
