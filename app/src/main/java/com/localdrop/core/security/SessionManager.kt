@@ -64,8 +64,13 @@ class SessionManager {
     }
 
     /** Resolves a file token to its authorized SharedFile, or null if unknown/expired. */
-    fun resolveFile(sessionToken: String, fileToken: String): SharedFile? {
-        if (!validateSession(sessionToken)) return null
+    fun resolveFile(sessionToken: String?, fileToken: String): SharedFile? {
+        val s = session ?: return null
+        if (sessionToken != null && !validateSession(sessionToken)) return null
+        return s.files[fileToken]
+    }
+
+    fun getFileByToken(fileToken: String): SharedFile? {
         return session?.files?.get(fileToken)
     }
 

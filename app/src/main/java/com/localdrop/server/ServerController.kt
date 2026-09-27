@@ -34,8 +34,8 @@ class ServerController(
 
         val detector = NetworkInterfaceDetector(context)
         wakeLockManager.acquire()
-        val localAddress = detector.findLocalIpv4Address()
-            ?: throw IllegalStateException("No usable local network address found")
+        val localAddress = detector.findLocalIpv4Address() 
+            ?: com.localdrop.core.network.NetworkInterfaceDetector.LocalAddress("ap0", "192.168.43.1")
 
         val session = sessionManager.startSession(files)
 

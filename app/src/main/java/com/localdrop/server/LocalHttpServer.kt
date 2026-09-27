@@ -94,7 +94,8 @@ class LocalHttpServer(
             ?: return jsonError(Response.Status.NOT_FOUND, "No active session")
 
         val fileToken = session.uri.removePrefix(NetworkConstants.ROUTE_DOWNLOAD_PREFIX)
-        val file = activeSession.files[fileToken]
+        val file = sessionManager.getFileByToken(fileToken) 
+            ?: activeSession.files[fileToken]
             ?: return jsonError(Response.Status.NOT_FOUND, "File not found")
 
         val rangeHeader = session.headers["range"]
