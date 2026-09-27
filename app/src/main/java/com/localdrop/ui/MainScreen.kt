@@ -708,8 +708,8 @@ fun ReceiveFilesScreen(onBack: () -> Unit) {
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
                         text = "How to receive without any app:",
