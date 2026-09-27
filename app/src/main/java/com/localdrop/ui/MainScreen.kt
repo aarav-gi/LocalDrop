@@ -32,8 +32,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.localdrop.ads.SmartAdContainer
+import com.localdrop.core.utils.HistoryItem
+import com.localdrop.core.utils.HistoryManager
 import com.localdrop.core.utils.SizeFormatter
 import com.localdrop.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MainScreen(
@@ -41,9 +46,6 @@ fun MainScreen(
     onPickFiles: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
-
-
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
 
     LaunchedEffect(uiState.sharingActive, uiState.serverConfig) {
@@ -53,16 +55,8 @@ fun MainScreen(
             currentScreen = Screen.Home
         }
     }
-    var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
-    // Auto-navigate to QR Code screen when sharing turns active
-    LaunchedEffect(uiState.sharingActive) {
-        if (uiState.sharingActive) {
-            currentScreen = Screen.ShareQr
-        } else if (currentScreen is Screen.ShareQr) {
-            currentScreen = Screen.Home
-        }
-    }
+    var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
     Scaffold(
         containerColor = BgLight,
@@ -90,12 +84,8 @@ fun MainScreen(
             when (currentScreen) {
                 is Screen.Home -> HomeScreen(
                     onSendClicked = {
-                        if (uiState.pickedFiles.isNotEmpty()) {
-                            currentScreen = Screen.SendFiles
-                        } else {
-                            onPickFiles()
-                            currentScreen = Screen.SendFiles
-                        }
+                        // Directly open internal category dashboard (Files, Photos, Videos, Apps)
+                        currentScreen = Screen.SendFiles
                     },
                     onReceiveClicked = { currentScreen = Screen.ReceiveFiles },
                     onSettingsClicked = {
@@ -119,14 +109,19 @@ fun MainScreen(
                     onBack = { currentScreen = Screen.Home }
                 )
                 is Screen.History -> HistoryScreen()
-                is Screen.Settings -> SettingsScreen()
+                is Screen.Settings -> SettingsScreen(
+                    onClearHistory = {
+                        currentTab = BottomTab.HISTORY
+                        currentScreen = Screen.History
+                    }
+                )
             }
         }
     }
 }
 
 // -------------------------------------------------------------
-// 1. HOME SCREEN (Matching reference hero card + actions)
+// 1. HOME SCREEN
 // -------------------------------------------------------------
 @Composable
 fun HomeScreen(
@@ -163,7 +158,7 @@ fun HomeScreen(
                 }
             }
 
-            // Hero Card (Share Files Easily)
+            // Hero Card
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -201,7 +196,7 @@ fun HomeScreen(
                     )
 
                     Text(
-                        text = "Send files to nearby devices\nwithout internet.",
+                        text = "High-speed offline transfer via\nHotspot or local Wi-Fi.",
                         style = MaterialTheme.typography.bodyMedium.copy(
                             color = TextSecondary,
                             textAlign = TextAlign.Center
@@ -212,7 +207,6 @@ fun HomeScreen(
 
             // Action Buttons
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                // Send Files (Primary Blue)
                 Button(
                     onClick = onSendClicked,
                     shape = RoundedCornerShape(16.dp),
@@ -237,14 +231,13 @@ fun HomeScreen(
                                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = "Generate QR Code",
+                                text = "Photos, Videos, Apps & Docs",
                                 style = MaterialTheme.typography.labelSmall.copy(color = Color.White.copy(alpha = 0.8f))
                             )
                         }
                     }
                 }
 
-                // Receive Files (Outlined White)
                 Surface(
                     onClick = onReceiveClicked,
                     shape = RoundedCornerShape(16.dp),
@@ -277,7 +270,7 @@ fun HomeScreen(
                                 )
                             )
                             Text(
-                                text = "Scan QR Code",
+                                text = "How to download via Browser",
                                 style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
                             )
                         }
@@ -285,7 +278,7 @@ fun HomeScreen(
                 }
             }
 
-            // Info Banner (No internet required)
+            // Info Banner
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = PrimaryBlueLight,
@@ -304,14 +297,14 @@ fun HomeScreen(
                     )
                     Column {
                         Text(
-                            text = "No internet required",
+                            text = "Zero Internet Data Used",
                             style = MaterialTheme.typography.labelLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = PrimaryBlue
                             )
                         )
                         Text(
-                            text = "Works via local network (Wi-Fi / Hotspot)",
+                            text = "Works purely over offline local frequency",
                             style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary)
                         )
                     }
@@ -319,13 +312,12 @@ fun HomeScreen(
             }
         }
 
-        // Bottom Box Ad (Idle state)
         SmartAdContainer(isSharingActive = false)
     }
 }
 
 // -------------------------------------------------------------
-// 2. SEND FILES SCREEN (Category Tabs + Selection List + CTA)
+// 2. SEND FILES SCREEN
 // -------------------------------------------------------------
 @Composable
 fun SendFilesScreen(
@@ -384,7 +376,7 @@ fun SendFilesScreen(
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                 }
                 Text(
-                    text = "Send Files",
+                    text = "Select Files to Send",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -392,7 +384,7 @@ fun SendFilesScreen(
                 )
             }
 
-            // Category Tabs
+            // Tabs
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.Transparent,
@@ -489,7 +481,7 @@ fun SendFilesScreen(
                         Icon(Icons.Default.FolderOpen, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(40.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("No items found in ${tabs[selectedTab]}", fontWeight = FontWeight.Bold, color = TextPrimary)
-                        Text("Tap Browse to select manually", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("Tap Browse to pick from phone storage", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                     }
                 }
             } else {
@@ -593,6 +585,9 @@ fun SendFilesScreen(
     }
 }
 
+// -------------------------------------------------------------
+// 3. SHARE QR SCREEN
+// -------------------------------------------------------------
 @Composable
 fun ShareQrScreen(
     viewModel: MainViewModel,
@@ -610,7 +605,6 @@ fun ShareQrScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -620,7 +614,7 @@ fun ShareQrScreen(
                     Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                 }
                 Text(
-                    text = "Your QR Code",
+                    text = "Scan & Download",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -631,7 +625,6 @@ fun ShareQrScreen(
         }
 
         item {
-            // Elevated White QR Card
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -657,11 +650,11 @@ fun ShareQrScreen(
                     }
 
                     Text(
-                        text = "Scan this QR code to receive the files",
+                        text = "Scan with Camera or any QR Scanner",
                         style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary)
                     )
                     Text(
-                        text = "Keep this screen open while sharing",
+                        text = "Receiver can download directly from browser",
                         style = MaterialTheme.typography.labelSmall.copy(color = TextSecondary)
                     )
                 }
@@ -669,7 +662,6 @@ fun ShareQrScreen(
         }
 
         item {
-            // Files Summary
             val totalBytes = uiState.pickedFiles.sumOf { it.sizeBytes }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -677,17 +669,16 @@ fun ShareQrScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Files to be sent (${uiState.pickedFiles.size})",
+                    text = "Files (${uiState.pickedFiles.size})",
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary)
                 )
                 Text(
-                    text = "Total Size: " + SizeFormatter.formatBytes(totalBytes),
+                    text = "Total: " + SizeFormatter.formatBytes(totalBytes),
                     style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontWeight = FontWeight.SemiBold)
                 )
             }
         }
 
-        // File Item Preview
         items(uiState.pickedFiles.take(3)) { file ->
             Card(
                 shape = RoundedCornerShape(10.dp),
@@ -713,14 +704,13 @@ fun ShareQrScreen(
             }
         }
 
-        // Secondary Action: Share / Copy Link
         item {
             if (serverCfg != null) {
                 val fullUrl = serverCfg.connectionUrl()
                 OutlinedButton(
                     onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Quick Share URL", fullUrl))
+                        clipboard.setPrimaryClip(ClipData.newPlainText("LocalDrop URL", fullUrl))
                         Toast.makeText(context, "Link Copied!", Toast.LENGTH_SHORT).show()
                     },
                     shape = RoundedCornerShape(14.dp),
@@ -728,19 +718,17 @@ fun ShareQrScreen(
                         .fillMaxWidth()
                         .height(50.dp)
                 ) {
-                    Icon(Icons.Default.Share, contentDescription = null, tint = PrimaryBlue)
+                    Icon(Icons.Default.ContentCopy, contentDescription = null, tint = PrimaryBlue)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share Link (Optional)", color = PrimaryBlue, fontWeight = FontWeight.SemiBold)
+                    Text("Copy Browser URL", color = PrimaryBlue, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
-        // Video Ad Autoplay Container
         item {
             SmartAdContainer(isSharingActive = true)
         }
 
-        // Stop Sharing Button
         item {
             Button(
                 onClick = onBack,
@@ -758,7 +746,7 @@ fun ShareQrScreen(
 }
 
 // -------------------------------------------------------------
-// 4. RECEIVER SCREEN
+// 4. RECEIVE FILES SCREEN (Complete Information)
 // -------------------------------------------------------------
 @Composable
 fun ReceiveFilesScreen(onBack: () -> Unit) {
@@ -768,7 +756,7 @@ fun ReceiveFilesScreen(onBack: () -> Unit) {
             .padding(20.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -785,24 +773,63 @@ fun ReceiveFilesScreen(onBack: () -> Unit) {
                 )
             }
 
+            // Zero Internet Notice Card
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = PrimaryBlueLight),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(Icons.Default.CloudOff, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(28.dp))
+                    Column {
+                        Text(
+                            text = "Zero Internet Consumption",
+                            fontWeight = FontWeight.Bold,
+                            color = PrimaryBlue
+                        )
+                        Text(
+                            text = "This app transfers files entirely offline. Neither sender nor receiver needs active internet data.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
+
+            // Step-by-Step Instructions
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
                         text = "How to receive without any app:",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = TextPrimary)
                     )
-                    Text(
-                        text = "1. Connect receiver phone's Wi-Fi to Sender's Hotspot.\n2. Open Camera or any Browser.\n3. Scan sender's QR code to download directly!",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = TextSecondary, lineHeight = 22.sp)
+
+                    InstructionStep(
+                        number = "1",
+                        title = "Network Connection",
+                        description = "Sender must turn on Hotspot OR both devices must be on the same local Wi-Fi router."
+                    )
+                    InstructionStep(
+                        number = "2",
+                        title = "Scan QR Code",
+                        description = "Receiver connects Wi-Fi to Sender's hotspot and scans the sender's QR code using Camera, Google Lens, or any QR scanner."
+                    )
+                    InstructionStep(
+                        number = "3",
+                        title = "Direct Browser Download",
+                        description = "A private download page opens in Chrome/Safari. Tap Download to save files directly to internal storage."
                     )
                 }
             }
@@ -819,31 +846,130 @@ fun ReceiveFilesScreen(onBack: () -> Unit) {
     }
 }
 
+@Composable
+fun InstructionStep(number: String, title: String, description: String) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(PrimaryBlue),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(number, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextPrimary)
+            Text(description, color = TextSecondary, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
 // -------------------------------------------------------------
-// 5. HISTORY & SETTINGS SCREENS
+// 5. HISTORY SCREEN (Persistent Transfer Logs)
 // -------------------------------------------------------------
 @Composable
 fun HistoryScreen() {
+    val context = LocalContext.current
+    var historyItems by remember { mutableStateOf(HistoryManager.getHistory(context)) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp)
     ) {
-        Text("Transfer History", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-        Spacer(modifier = Modifier.height(20.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 40.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("No recent transfers found.", color = TextSecondary)
+            Text("Transfer History", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+            if (historyItems.isNotEmpty()) {
+                TextButton(
+                    onClick = {
+                        HistoryManager.clearHistory(context)
+                        historyItems = emptyList()
+                    }
+                ) {
+                    Text("Clear All", color = ErrorRed)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (historyItems.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Default.History, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(48.dp))
+                    Text("No recent transfers found.", color = TextSecondary, fontWeight = FontWeight.Medium)
+                    Text("Files you share will appear here.", color = TextSecondary, fontSize = 12.sp)
+                }
+            }
+        } else {
+            val sdf = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(historyItems) { item ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(PrimaryBlueLight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.fileName,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${SizeFormatter.formatBytes(item.sizeBytes)} • ${sdf.format(Date(item.timestamp))}",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+// -------------------------------------------------------------
+// 6. SETTINGS SCREEN (Useful Controls & Settings)
+// -------------------------------------------------------------
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onClearHistory: () -> Unit) {
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -851,6 +977,26 @@ fun SettingsScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Settings", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+
+        // Connection Modes Info
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Transfer Protocols", fontWeight = FontWeight.Bold)
+                Text(
+                    text = "• Wi-Fi Access Point (Hotspot Mode)\n• Shared Local Router (Same Wi-Fi Mode)\n• High-throughput Local Stream Engine",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        }
+
+        // Storage & Cache
         Card(
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
@@ -858,16 +1004,48 @@ fun SettingsScreen() {
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Data & History", fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Transfer Logs", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                        Text("Clear logged file transfer history", color = TextSecondary, fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            HistoryManager.clearHistory(context)
+                            Toast.makeText(context, "History cleared!", Toast.LENGTH_SHORT).show()
+                            onClearHistory()
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Clear", color = ErrorRed)
+                    }
+                }
+            }
+        }
+
+        // App Information
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderLight),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("About Quick Share", fontWeight = FontWeight.Bold)
-                Text("Version 1.0.0", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
-                Text("Direct offline high-speed local file sharing.", color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+                Text("Version 1.0.0 (Production Release)", color = TextSecondary, fontSize = 13.sp)
+                Text("100% Offline peer-to-peer file sharing without third-party servers.", color = TextSecondary, fontSize = 12.sp)
             }
         }
     }
 }
 
 // -------------------------------------------------------------
-// 6. BOTTOM NAVIGATION BAR (Home | History | Settings)
+// 7. BOTTOM NAVIGATION BAR
 // -------------------------------------------------------------
 @Composable
 fun BottomNavBar(
