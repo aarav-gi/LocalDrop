@@ -14,7 +14,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 data class AdConfig(
-    val adsEnabled: Boolean = false,
+    val adsEnabled: Boolean = true,
     val bannerAdId: String = "ca-app-pub-3940256099942544/6300978111",
     val interstitialAdId: String = "ca-app-pub-3940256099942544/1033173712",
     val nativeVideoAdId: String = "ca-app-pub-3940256099942544/2247696110",
