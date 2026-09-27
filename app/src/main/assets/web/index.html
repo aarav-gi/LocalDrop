@@ -1,65 +1,51 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>LocalDrop</title>
-<style>
-  :root {
-    --bg: #0f172a;
-    --card: #1e293b;
-    --accent: #3b82f6;
-    --text: #f1f5f9;
-    --muted: #94a3b8;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    padding: 24px 16px 48px;
-  }
-  .wrap { max-width: 640px; margin: 0 auto; }
-  h1 { font-size: 1.5rem; margin-bottom: 4px; }
-  .status { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
-  .status.ok { color: #4ade80; }
-  .status.err { color: #f87171; }
-  .file-card {
-    background: var(--card);
-    border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-  .file-info { min-width: 0; }
-  .file-name { font-weight: 600; word-break: break-word; }
-  .file-meta { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
-  .btn {
-    background: var(--accent);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 18px;
-    font-size: 0.95rem;
-    text-decoration: none;
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .btn:active { opacity: 0.8; }
-  .empty { color: var(--muted); text-align: center; padding: 48px 0; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LocalDrop - Direct Share</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #0b0f17; color: #f1f5f9; min-height: 100vh; padding: 24px 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 520px; }
+    h1 { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    h1::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #22c55e; }
+    .status { font-size: 14px; color: #94a3b8; margin-bottom: 20px; }
+    .status.err { color: #ef4444; }
+    .file-card { background: #131b2a; border: 1px solid #1e293b; border-radius: 14px; padding: 14px 16px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .file-info { min-width: 0; flex: 1; }
+    .file-name { font-size: 15px; font-weight: 600; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+    .file-meta { font-size: 12px; color: #64748b; }
+    .btn { background: #2563eb; color: #fff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 16px; border-radius: 10px; display: inline-block; letter-spacing: 0.02em; white-space: nowrap; border: none; cursor: pointer; }
+    .btn:hover { background: #1d4ed8; }
+    .empty { background: #131b2a; border: 1px dashed #334155; border-radius: 14px; padding: 32px 16px; text-align: center; color: #94a3b8; font-size: 14px; }
+    .ad-card { margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.03); border: 1px solid #1e293b; border-radius: 16px; }
+    .ad-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .ad-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #3b82f6; font-weight: 700; }
+    .ad-badge { font-size: 10px; color: #94a3b8; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px; }
+    .video-wrap { border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 16px rgba(0,0,0,0.5); }
+    video { width: 100%; max-height: 220px; display: block; object-fit: cover; }
+  </style>
 </head>
 <body>
-<div class="wrap">
+<div class="container">
   <h1>LocalDrop</h1>
   <div id="status" class="status">Connecting to sender…</div>
   <div id="fileList"></div>
+
+  <!-- Receiver Video Ad -->
+  <div class="ad-card">
+    <div class="ad-header">
+      <span class="ad-title">Sponsored Promotion</span>
+      <span class="ad-badge">Ad</span>
+    </div>
+    <div class="video-wrap">
+      <video autoplay muted loop playsinline controls>
+        <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+      </video>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -92,31 +78,18 @@
       card.className = 'file-card';
       card.innerHTML =
         '<div class="file-info">' +
-          '<div class="file-name"></div>' +
-          '<div class="file-meta"></div>' +
-        '
-        <!-- Sponsored Video Section -->
-        <div style="margin-top: 24px; padding: 16px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #3b82f6; font-weight: 700;">Sponsored Video</span>
-                <span style="font-size: 10px; color: #94a3b8; background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">Ad</span>
-            </div>
-            <div style="position: relative; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 16px rgba(0,0,0,0.5);">
-                <video autoplay muted loop playsinline controls style="width: 100%; max-height: 220px; display: block; object-fit: cover;">
-                    <source src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" type="video/mp4">
-                    Your browser does not support HTML5 video.
-                </video>
-            </div>
-        </div>
-
-</div>' +
-        '<a class="btn">DOWNLOAD</a>';
-      card.querySelector('.file-name').textContent = f.name;
-      card.querySelector('.file-meta').textContent = formatBytes(f.size) + ' · ' + f.mime;
-      var link = card.querySelector('.btn');
-      link.href = '/api/download/' + encodeURIComponent(f.token) + '?s=' + encodeURIComponent(token);
-      link.setAttribute('download', f.name);
+          '<div class="file-name">' + escapeHtml(f.name) + '</div>' +
+          '<div class="file-meta">' + formatBytes(f.size) + ' · ' + escapeHtml(f.mime) + '</div>' +
+        '</div>' +
+        '<a class="btn" download="' + escapeHtml(f.name) + '" href="/api/download/' + encodeURIComponent(f.token) + '?s=' + encodeURIComponent(token) + '">DOWNLOAD</a>';
       listEl.appendChild(card);
+    });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>"']/g, function(m) {
+      return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[m];
     });
   }
 
@@ -128,16 +101,15 @@
 
   fetch('/api/files?s=' + encodeURIComponent(token))
     .then(function (r) {
-      if (!r.ok) throw new Error('Session expired or invalid (HTTP ' + r.status + ')');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     })
-    .then(function (files) {
-      statusEl.textContent = 'Connected to sender · ' + files.length + ' file(s) available';
-      statusEl.className = 'status ok';
-      renderFiles(files);
+    .then(function (data) {
+      statusEl.textContent = 'Connected! Ready to download (' + data.length + ' file' + (data.length === 1 ? '' : 's') + ' available)';
+      renderFiles(data);
     })
     .catch(function (err) {
-      statusEl.textContent = err.message;
+      statusEl.textContent = 'Failed to connect: ' + err.message;
       statusEl.className = 'status err';
     });
 })();

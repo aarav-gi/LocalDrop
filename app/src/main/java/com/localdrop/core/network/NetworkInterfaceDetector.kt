@@ -6,48 +6,57 @@ import android.net.wifi.WifiManager
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
-/**
- * Discovers the actual local IPv4 address to bind/advertise the HTTP server
- * on, at runtime. Deliberately never assumes 192.168.43.1 or any fixed
- * address — different OEMs, Android versions, and LocalOnlyHotspot vs.
- * regular Wi-Fi all hand out different ranges.
- */
 class NetworkInterfaceDetector(private val context: Context) {
 
     data class LocalAddress(val interfaceName: String, val ipv4: String)
 
-    /**
-     * Walks every active, non-loopback network interface looking for an
-     * IPv4 address. Prefers a typical hotspot/Wi-Fi-Direct interface name
-     * (wlan, ap, swlan, etc.) if more than one candidate exists, but falls
-     * back to the first valid address found so we still work on devices
-     * that name things differently.
-     */
     fun findLocalIpv4Address(): LocalAddress? {
         val candidates = mutableListOf<LocalAddress>()
         try {
-            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return null
+            val interfaces = NetworkInterface.getNetworkInterfaces() ?: return fallbackFromWifiManager()
             for (iface in interfaces) {
                 if (!iface.isUp || iface.isLoopback) continue
+                val name = iface.name.lowercase()
+
+                // Exclude mobile data, CLAT, VPN, and cellular interfaces
+                if (name.startsWith("rmnet") || name.startsWith("clat") ||
+                    name.startsWith("ccmni") || name.startsWith("dummy") ||
+                    name.startsWith("tun") || name.startsWith("ppp")) {
+                    continue
+                }
+
                 for (addr in iface.inetAddresses) {
                     if (addr is Inet4Address && !addr.isLoopbackAddress) {
-                        candidates.add(LocalAddress(iface.name, addr.hostAddress ?: continue))
+                        val ip = addr.hostAddress ?: continue
+                        // Exclude 192.0.0.x (Cellular 464XLAT internal translation)
+                        if (ip.startsWith("192.0.0.")) continue
+                        candidates.add(LocalAddress(iface.name, ip))
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return fallbackFromWifiManager()
         }
 
         if (candidates.isEmpty()) return fallbackFromWifiManager()
 
-        val preferredPrefixes = listOf("ap", "wlan", "swlan", "softap", "p2p")
-        return candidates.firstOrNull { c ->
-            preferredPrefixes.any { c.interfaceName.startsWith(it, ignoreCase = true) }
-        } ?: candidates.first()
+        // 1. Hotspot & Wi-Fi interfaces prioritized
+        val preferredPrefixes = listOf("ap", "wlan", "swlan", "softap", "p2p", "rndis")
+        val wifiOrHotspot = candidates.filter { c ->
+            preferredPrefixes.any { c.interfaceName.lowercase().startsWith(it) }
+        }
+
+        // 2. Pick valid local private IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+        val privateCandidate = wifiOrHotspot.firstOrNull { isPrivateSubnet(it.ipv4) }
+            ?: candidates.firstOrNull { isPrivateSubnet(it.ipv4) }
+
+        return privateCandidate ?: wifiOrHotspot.firstOrNull() ?: candidates.firstOrNull() ?: fallbackFromWifiManager()
     }
 
-    /** Last-resort fallback using WifiManager's connection info. */
+    private fun isPrivateSubnet(ip: String): Boolean {
+        return ip.startsWith("192.168.") || ip.startsWith("10.") || ip.matches(Regex("^172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"))
+    }
+
     @Suppress("DEPRECATION")
     private fun fallbackFromWifiManager(): LocalAddress? {
         return try {
@@ -62,7 +71,7 @@ class NetworkInterfaceDetector(private val context: Context) {
                 (ip shr 24 and 0xff).toByte()
             )
             LocalAddress("wlan-fallback", bytes.joinToString(".") { (it.toInt() and 0xff).toString() })
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
