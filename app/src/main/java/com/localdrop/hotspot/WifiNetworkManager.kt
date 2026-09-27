@@ -18,15 +18,21 @@ class WifiNetworkManager(private val context: Context) {
         _state.value = HotspotState.Starting
 
         val detector = NetworkInterfaceDetector(context)
-        
-        // 1. Agar phone Wi-Fi client hai ya phone ka apna hotspot pehle se chal raha hai
         val localAddr = detector.findLocalIpv4Address()
-        if (detector.hasUsableNetwork() || localAddr.interfaceName.startsWith("ap") || localAddr.interfaceName.startsWith("softap") || localAddr.ipv4.startsWith("192.168.")) {
+        
+        // 1. Agar device kisi Wi-Fi network se juda hai ya Hotspot interface already running hai
+        val isHotspotInterface = localAddr?.interfaceName?.let {
+            it.startsWith("ap") || it.startsWith("softap") || it.startsWith("swlan")
+        } ?: false
+
+        val isLocalSubnet = localAddr?.ipv4?.startsWith("192.168.") ?: false
+
+        if (detector.hasUsableNetwork() || isHotspotInterface || isLocalSubnet) {
             _state.value = HotspotState.Running(ssid = null, usingExistingWifi = true)
             return _state.value
         }
 
-        // 2. Agar koi network nahi mila, tabhi naya LocalOnlyHotspot start karein
+        // 2. Agar koi existing local interface nahi hai, tab naya LocalOnlyHotspot start karein
         teardown()
 
         val result = localOnlyHotspotManager.start()
@@ -41,9 +47,8 @@ class WifiNetworkManager(private val context: Context) {
                 HotspotState.Running(ssid = ssid, usingExistingWifi = false)
             }
             is LocalOnlyHotspotManager.Result.Failed -> {
-                // Fallback: Agar hotspot already ON tha aur start() fail ho gaya,
-                // par device ke paas valid local IP maujood hai, toh transfer fail nahi karenge
-                if (localAddr.ipv4.isNotEmpty()) {
+                // Pre-existing hotspot fallback: agar start() mana kare par IP address pehle se available hai
+                if (localAddr != null && localAddr.ipv4.isNotBlank()) {
                     HotspotState.Running(ssid = null, usingExistingWifi = true)
                 } else {
                     HotspotState.Failed(result.reason)
