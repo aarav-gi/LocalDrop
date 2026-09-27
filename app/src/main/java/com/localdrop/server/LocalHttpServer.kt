@@ -15,7 +15,7 @@ class LocalHttpServer(
     private val sessionManager: SessionManager,
     private val transferManager: TransferManager,
     private val onRequestLog: (String) -> Unit
-) : NanoHTTPD(port) {
+) : NanoHTTPD("0.0.0.0", port) {
 
     private val fileStreamer = FileStreamer(context)
     private val rateLimiter = RateLimiter()
