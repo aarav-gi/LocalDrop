@@ -18,12 +18,15 @@ class WifiNetworkManager(private val context: Context) {
         _state.value = HotspotState.Starting
 
         val detector = NetworkInterfaceDetector(context)
-        if (detector.hasUsableNetwork()) {
+        
+        // 1. Agar phone Wi-Fi client hai ya phone ka apna hotspot pehle se chal raha hai
+        val localAddr = detector.findLocalIpv4Address()
+        if (detector.hasUsableNetwork() || localAddr.interfaceName.startsWith("ap") || localAddr.interfaceName.startsWith("softap") || localAddr.ipv4.startsWith("192.168.")) {
             _state.value = HotspotState.Running(ssid = null, usingExistingWifi = true)
             return _state.value
         }
 
-        // Naya connection shuru karne se pehle puraana clean karein
+        // 2. Agar koi network nahi mila, tabhi naya LocalOnlyHotspot start karein
         teardown()
 
         val result = localOnlyHotspotManager.start()
@@ -37,7 +40,15 @@ class WifiNetworkManager(private val context: Context) {
                 }
                 HotspotState.Running(ssid = ssid, usingExistingWifi = false)
             }
-            is LocalOnlyHotspotManager.Result.Failed -> HotspotState.Failed(result.reason)
+            is LocalOnlyHotspotManager.Result.Failed -> {
+                // Fallback: Agar hotspot already ON tha aur start() fail ho gaya,
+                // par device ke paas valid local IP maujood hai, toh transfer fail nahi karenge
+                if (localAddr.ipv4.isNotEmpty()) {
+                    HotspotState.Running(ssid = null, usingExistingWifi = true)
+                } else {
+                    HotspotState.Failed(result.reason)
+                }
+            }
         }
         return _state.value
     }

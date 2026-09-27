@@ -486,7 +486,7 @@ fun SendFilesScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(currentItems) { item ->
+                    items(currentItems, key = { it.uri.toString() }) { item ->
                         val isSelected = uiState.pickedFiles.any { it.uri == item.uri }
                         Card(
                             shape = RoundedCornerShape(12.dp),
