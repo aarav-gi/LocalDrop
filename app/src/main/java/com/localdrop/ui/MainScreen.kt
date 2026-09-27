@@ -1039,6 +1039,11 @@ fun SettingsScreen(onClearHistory: () -> Unit) {
                 Text("About Quick Share", fontWeight = FontWeight.Bold)
                 Text("Version 1.0.0 (Production Release)", color = TextSecondary, fontSize = 13.sp)
                 Text("100% Offline peer-to-peer file sharing without third-party servers.", color = TextSecondary, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider(color = BorderLight)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("Developed by I/O StudioX", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = PrimaryBlue)
+                Text("© 2026 I/O StudioX. All rights reserved.", color = TextSecondary, fontSize = 11.sp)
             }
         }
     }
