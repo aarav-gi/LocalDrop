@@ -1,3 +1,4 @@
+import com.localdrop.ads.IronSourceAdManager
 package com.localdrop
 
 import android.Manifest
@@ -104,4 +105,15 @@ class MainActivity : ComponentActivity() {
             permissionLauncher.launch(needed.toTypedArray())
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        IronSourceAdManager.onResume(this)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        IronSourceAdManager.onPause(this)
+    }
+
 }
