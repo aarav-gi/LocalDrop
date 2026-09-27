@@ -18,18 +18,21 @@ class NetworkInterfaceDetector(private val context: Context) {
                 if (!iface.isUp || iface.isLoopback) continue
                 val name = iface.name.lowercase()
 
-                // Exclude mobile data, CLAT, VPN, and cellular interfaces
+                // 1. Exclude Cellular / Mobile Data / VPN interfaces
                 if (name.startsWith("rmnet") || name.startsWith("clat") ||
                     name.startsWith("ccmni") || name.startsWith("dummy") ||
-                    name.startsWith("tun") || name.startsWith("ppp")) {
+                    name.startsWith("tun") || name.startsWith("ppp") ||
+                    name.startsWith("radio") || name.startsWith("wwan")) {
                     continue
                 }
 
                 for (addr in iface.inetAddresses) {
                     if (addr is Inet4Address && !addr.isLoopbackAddress) {
                         val ip = addr.hostAddress ?: continue
-                        // Exclude 192.0.0.x (Cellular 464XLAT internal translation)
-                        if (ip.startsWith("192.0.0.")) continue
+
+                        // Exclude carrier NAT & cellular subnet ranges
+                        if (ip.startsWith("192.0.0.") || ip.startsWith("100.") || ip.startsWith("127.")) continue
+
                         candidates.add(LocalAddress(iface.name, ip))
                     }
                 }
@@ -40,21 +43,25 @@ class NetworkInterfaceDetector(private val context: Context) {
 
         if (candidates.isEmpty()) return fallbackFromWifiManager()
 
-        // 1. Hotspot & Wi-Fi interfaces prioritized
-        val preferredPrefixes = listOf("ap", "wlan", "swlan", "softap", "p2p", "rndis")
+        // 2. Priority 1: Hotspot & Wi-Fi interfaces with 192.168.x.x (Standard for Android Hotspot & Wi-Fi)
         val wifiOrHotspot = candidates.filter { c ->
-            preferredPrefixes.any { c.interfaceName.lowercase().startsWith(it) }
+            val n = c.interfaceName.lowercase()
+            n.startsWith("wlan") || n.startsWith("ap") || n.startsWith("swlan") || n.startsWith("softap") || n.startsWith("p2p")
         }
 
-        // 2. Pick valid local private IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-        val privateCandidate = wifiOrHotspot.firstOrNull { isPrivateSubnet(it.ipv4) }
-            ?: candidates.firstOrNull { isPrivateSubnet(it.ipv4) }
+        val primary192 = wifiOrHotspot.firstOrNull { it.ipv4.startsWith("192.168.") }
+        if (primary192 != null) return primary192
 
-        return privateCandidate ?: wifiOrHotspot.firstOrNull() ?: candidates.firstOrNull() ?: fallbackFromWifiManager()
-    }
+        // 3. Priority 2: Any 192.168.x.x interface
+        val any192 = candidates.firstOrNull { it.ipv4.startsWith("192.168.") }
+        if (any192 != null) return any192
 
-    private fun isPrivateSubnet(ip: String): Boolean {
-        return ip.startsWith("192.168.") || ip.startsWith("10.") || ip.matches(Regex("^172\\.(1[6-9]|2[0-9]|3[0-1])\\..*"))
+        // 4. Priority 3: Other Wi-Fi subnets (e.g. 172.16-31.x or non-cellular 10.x on wlan)
+        val wifiOther = wifiOrHotspot.firstOrNull { !it.ipv4.startsWith("10.") }
+            ?: wifiOrHotspot.firstOrNull()
+        if (wifiOther != null) return wifiOther
+
+        return candidates.firstOrNull() ?: fallbackFromWifiManager()
     }
 
     @Suppress("DEPRECATION")
