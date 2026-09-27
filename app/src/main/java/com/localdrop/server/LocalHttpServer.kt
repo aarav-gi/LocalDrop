@@ -117,7 +117,7 @@ class LocalHttpServer(
             return jsonError(Response.Status.INTERNAL_ERROR, "Cannot read file: ${e.message}")
         }
 
-        transferManager.onTransferStarted(remoteAddress, file.displayName, file.sizeBytes)
+        transferManager.beginTransfer(file.fileToken, file.displayName, file.sizeBytes, remoteAddress, startByte)
 
         val status = if (parsedRange != null) Response.Status.PARTIAL_CONTENT else Response.Status.OK
         val response = newFixedLengthResponse(status, file.mimeType, opened.stream, opened.lengthToServe)

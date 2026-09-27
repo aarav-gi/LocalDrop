@@ -13,13 +13,14 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.localdrop.R
 import com.localdrop.core.constants.AppConstants
-import com.localdrop.core.model.SharedFile
-import com.localdrop.core.utils.SizeFormatter
+import com.localdrop.core.security.SessionManager
+import com.localdrop.core.security.SharedFile
 import com.localdrop.hotspot.HotspotState
 import com.localdrop.hotspot.WifiNetworkManager
 import com.localdrop.server.ServerConfig
 import com.localdrop.server.ServerController
 import com.localdrop.server.TransferManager
+import com.localdrop.server.TransferState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,8 +40,9 @@ class SharingForegroundService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
 
     private lateinit var wifiNetworkManager: WifiNetworkManager
-    private lateinit var serverController: ServerController
+    val sessionManager = SessionManager()
     val transferManager = TransferManager()
+    private lateinit var serverController: ServerController
 
     private val _sharingActive = MutableStateFlow(false)
     val sharingActive: StateFlow<Boolean> = _sharingActive
@@ -56,7 +58,7 @@ class SharingForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         wifiNetworkManager = WifiNetworkManager(applicationContext)
-        serverController = ServerController(applicationContext, transferManager)
+        serverController = ServerController(applicationContext, sessionManager, transferManager)
         createNotificationChannel()
     }
 
@@ -74,7 +76,7 @@ class SharingForegroundService : Service() {
             val config = serverController.start(files)
             _serverConfig.value = config
             _sharingActive.value = true
-            startForeground(AppConstants.NOTIFICATION_ID, buildNotification(0, 0.0))
+            startForeground(AppConstants.NOTIFICATION_ID, buildNotification(0))
             startNotificationTicker()
             true
         } catch (e: Exception) {
@@ -108,24 +110,24 @@ class SharingForegroundService : Service() {
         notificationTicker = serviceScope.launch {
             while (isActive) {
                 delay(1000)
+                val activeCount = transferManager.sessions.value.values.count { it.state == TransferState.TRANSFERRING }
                 val nm = getSystemService(NOTIFICATION_SERVICE) as? NotificationManager
                 nm?.notify(
                     AppConstants.NOTIFICATION_ID,
-                    buildNotification(transferManager.activeReceiverCount(), transferManager.totalThroughputBytesPerSec())
+                    buildNotification(activeCount)
                 )
             }
         }
     }
 
-    private fun buildNotification(receivers: Int, throughputBytesPerSec: Double): Notification {
-        val speedStr = "${SizeFormatter.formatBytes(throughputBytesPerSec.toLong())}/s"
-        val content = if (receivers > 0) {
-            "$receivers receiver(s) connected · $speedStr"
+    private fun buildNotification(activeCount: Int): Notification {
+        val content = if (activeCount > 0) {
+            "$activeCount transfer(s) active"
         } else {
             "Ready for receivers to connect"
         }
         return NotificationCompat.Builder(this, AppConstants.NOTIFICATION_CHANNEL_ID)
-            .setContentTitle("Quick Share Active")
+            .setContentTitle("LocalDrop Sharing")
             .setContentText(content)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
@@ -137,7 +139,7 @@ class SharingForegroundService : Service() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 AppConstants.NOTIFICATION_CHANNEL_ID,
-                AppConstants.NOTIFICATION_CHANNEL_NAME,
+                "LocalDrop File Transfer",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Shows transfer activity while sharing files"

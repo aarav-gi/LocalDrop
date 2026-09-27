@@ -42,16 +42,17 @@ fun MainScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Auto-navigate to ShareQr when server starts successfully
-    androidx.compose.runtime.LaunchedEffect(uiState.sharingActive, uiState.serverConfig) {
+
+
+    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+
+    LaunchedEffect(uiState.sharingActive, uiState.serverConfig) {
         if (uiState.sharingActive && uiState.serverConfig != null) {
             currentScreen = Screen.ShareQr
         } else if (!uiState.sharingActive && currentScreen is Screen.ShareQr) {
             currentScreen = Screen.Home
         }
     }
-
-    var currentScreen by remember { mutableStateOf<Screen>(Screen.Home) }
     var currentTab by remember { mutableStateOf(BottomTab.HOME) }
 
     // Auto-navigate to QR Code screen when sharing turns active
